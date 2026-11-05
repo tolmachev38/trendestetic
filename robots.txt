@@ -1,31 +1,31 @@
 # Trend Esthetic
 User-agent: *
-Allow: /REPO/
-Disallow: /REPO/admin/
-Clean-param: utm_source&utm_medium&utm_campaign&utm_content&utm_term&yclid&gclid&fbclid&ysclid /REPO/
+Allow: /
+Disallow: /admin/
+Clean-param: utm_source&utm_medium&utm_campaign&utm_content&utm_term&yclid&gclid&fbclid&ysclid /
 
 User-agent: Yandex
-Allow: /REPO/
-Disallow: /REPO/admin/
+Allow: /
+Disallow: /admin/
 
 User-agent: Googlebot
-Allow: /REPO/
-Disallow: /REPO/admin/
+Allow: /
+Disallow: /admin/
 
 # ИИ-ассистенты и поисковые ИИ — разрешаем, чтобы нас цитировали
 User-agent: GPTBot
-Allow: /REPO/
+Allow: /
 User-agent: OAI-SearchBot
-Allow: /REPO/
+Allow: /
 User-agent: ChatGPT-User
-Allow: /REPO/
+Allow: /
 User-agent: PerplexityBot
-Allow: /REPO/
+Allow: /
 User-agent: ClaudeBot
-Allow: /REPO/
+Allow: /
 User-agent: Claude-SearchBot
-Allow: /REPO/
+Allow: /
 User-agent: Google-Extended
-Allow: /REPO/
+Allow: /
 
-Sitemap: https://USERNAME.github.io/REPO/sitemap.xml
+Sitemap: Trend.Esthetic.ru/sitemap.xml
