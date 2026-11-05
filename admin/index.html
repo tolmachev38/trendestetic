@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Админка — Trend Esthetic</title>
+<link rel="icon" href="../assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <div class="logo"><span class="mk"></span><b>Trend Esthetic</b><small>админка сайта</small></div>
+    <div class="st" id="conn"><i></i><span>Не подключено к GitHub</span></div>
+    <div class="dirty" id="dirty" hidden>● Есть неопубликованные изменения</div>
+    <div class="acts">
+      <button class="b ghost" id="btnPreview" type="button" title="Показать / скрыть предпросмотр">👁 Предпросмотр</button>
+      <button class="b ghost" id="btnSettings" type="button">⚙ Подключение</button>
+      <button class="b gold" id="btnPublish" type="button">🚀 Опубликовать</button>
+    </div>
+  </header>
+  <aside class="side" id="side"></aside>
+  <main class="ed" id="ed"><div class="loading">Загрузка данных…</div></main>
+  <section class="pv" id="pv" hidden>
+    <div class="pv-bar">
+      <select id="pvPage"></select>
+      <div class="seg"><button type="button" data-w="100%" class="on">🖥</button><button type="button" data-w="390px">📱</button></div>
+      <button class="b ghost sm" id="pvReload" type="button">↻</button>
+    </div>
+    <div class="pv-frame"><iframe id="pvFrame" title="Предпросмотр"></iframe></div>
+  </section>
+</div>
+
+<dialog class="dlg" id="dlgSettings">
+  <form method="dialog" class="dlg-in" id="fSettings">
+    <h2>Подключение к GitHub</h2>
+    <p class="muted">Админка сохраняет изменения прямо в ваш репозиторий через GitHub API. Токен хранится только в этом браузере и никуда, кроме api.github.com, не отправляется.</p>
+    <div class="grid2">
+      <label>Владелец (логин или организация)<input name="owner" placeholder="например, ivanov" required></label>
+      <label>Репозиторий<input name="repo" placeholder="например, trend-esthetic" required></label>
+      <label>Ветка<input name="branch" placeholder="main" value="main"></label>
+      <label>Папка сайта в репозитории<input name="prefix" placeholder="пусто — сайт в корне"></label>
+    </div>
+    <label>Токен доступа (fine-grained, право Contents: Read and write)<input name="token" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+    <label class="chk"><input type="checkbox" name="remember" checked> Запомнить токен на этом устройстве</label>
+    <div class="note">Как получить токен: GitHub → Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b> → Generate new token → Repository access: <b>Only select repositories</b> (ваш репозиторий) → Permissions → Repository permissions → <b>Contents: Read and write</b> → Generate. Подробно — в README.md.</div>
+    <div class="row-end"><span id="setMsg" class="muted"></span><button class="b ghost" value="cancel" type="button" data-close>Отмена</button><button class="b ghost" type="button" id="btnTest">Проверить</button><button class="b gold" type="submit">Сохранить и загрузить</button></div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="dlgPublish">
+  <div class="dlg-in">
+    <h2>Публикация на GitHub</h2>
+    <label>Комментарий к изменениям<input id="pubMsg"></label>
+    <div class="log" id="pubLog"></div>
+    <div class="row-end"><button class="b ghost" type="button" data-close>Закрыть</button><button class="b gold" type="button" id="btnDoPublish">Опубликовать</button></div>
+  </div>
+</dialog>
+
+<dialog class="dlg wide" id="dlgPicker">
+  <div class="dlg-in">
+    <h2 id="pkTitle">Выбор изображения</h2>
+    <div class="pk-bar"><input type="search" id="pkSearch" placeholder="Поиск по имени файла"><label class="b gold">⬆ Загрузить<input type="file" id="pkUpload" accept="image/*" multiple hidden></label></div>
+    <div class="media" id="pkGrid"></div>
+    <div class="row-end"><button class="b ghost" type="button" data-close>Закрыть</button></div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+<script src="../assets/js/render.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
