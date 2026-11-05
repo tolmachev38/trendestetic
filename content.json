@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 4,
-  "updated": "2026-11-05T09:02:52.878Z"
+  "updated": "2026-11-05T09:05:56.570Z"
  },
  "site": {
   "name": "Trend Esthetic",
@@ -3043,7 +3043,7 @@
   "resultBtn": "Получить предложение"
  },
  "music": {
-  "enabled": true,
+  "enabled": false,
   "autoplay": true,
   "file": "music.mp3",
   "title": "Billie Eilish — CHIHIRO",
