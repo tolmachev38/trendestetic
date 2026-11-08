@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 4,
-  "updated": "2026-11-08T14:57:27.750Z"
+  "updated": "2026-11-08T15:01:09.394Z"
  },
  "site": {
   "name": "Trend Esthetic",
@@ -1011,48 +1011,6 @@
    "hidden": false
   },
   {
-   "id": "model2026",
-   "slug": "diodnyj-lazer-model-2026",
-   "cat": "epil",
-   "name": "Модель 2026",
-   "kind": "Диодный лазер",
-   "price": null,
-   "priceOld": null,
-   "availability": "InStock",
-   "img": "c_2026.webp",
-   "fit": "contain",
-   "pos": "",
-   "imgAlt": "",
-   "badges": [
-    {
-     "type": "f",
-     "text": "Хит 2026"
-    }
-   ],
-   "chips": [
-    "Дисплей на манипуле",
-    "Фильтры воды"
-   ],
-   "lead": "Хит 2026 года, который набирает популярность. Качественный корпус и дополнительный дисплей прямо на манипуле лазера.",
-   "description": "",
-   "gallery": [
-    "c_2026.webp"
-   ],
-   "feats": [
-    "Дополнительный дисплей на манипуле лазера",
-    "Фильтры дополнительно очищают воду — дольше срок службы оборудования",
-    "Очень удобная манипула: с первого нажатия прилегает к руке",
-    "Качественный корпус"
-   ],
-   "specs": [],
-   "tags": [
-    "flow"
-   ],
-   "seoTitle": "",
-   "seoDescription": "",
-   "hidden": false
-  },
-  {
    "id": "alma-compact",
    "slug": "soprano-alma-compact",
    "cat": "epil",
@@ -1406,120 +1364,6 @@
     "compact",
     "multi",
     "budget"
-   ],
-   "seoTitle": "",
-   "seoDescription": "",
-   "hidden": false
-  },
-  {
-   "id": "opt01",
-   "slug": "kosmeticheskij-kombajn-opt-01",
-   "cat": "multi",
-   "name": "OPT-01",
-   "kind": "Косметический комбайн · 3 манипулы",
-   "price": 199990,
-   "priceOld": null,
-   "availability": "InStock",
-   "img": "c_opt01.webp",
-   "fit": "contain",
-   "pos": "",
-   "imgAlt": "",
-   "badges": [
-    {
-     "type": "l",
-     "text": "10 услуг"
-    }
-   ],
-   "chips": [
-    "RF · Nd:YAG · ELOS",
-    "3 манипулы",
-    "На колёсах"
-   ],
-   "lead": "Напольный аппарат на колёсах: RF-лифтинг, SHR- и ELOS-эпиляция, фотоомоложение, осветление пигмента, лечение акне, удаление сосудистой сетки, татуировок и перманентного макияжа, карбоновый пилинг.",
-   "description": "",
-   "gallery": [
-    "c_opt01.webp"
-   ],
-   "feats": [
-    "RF-лифтинг — аппаратная коррекция фигуры",
-    "Неодимовая манипула: удаление татуировок, татуажа и карбоновый пилинг — ресурс 1 000 000 вспышек",
-    "ELOS: SHR- и ELOS-эпиляция, фотоомоложение, пигмент, акне, сосудистая сетка — ресурс 200 000 вспышек"
-   ],
-   "specs": [
-    {
-     "name": "Манипулы",
-     "value": "RF · неодимовая (Nd:YAG) · ELOS"
-    },
-    {
-     "name": "Ресурс неодимовой манипулы",
-     "value": "1 000 000 вспышек"
-    },
-    {
-     "name": "Ресурс ELOS-манипулы",
-     "value": "200 000 вспышек"
-    },
-    {
-     "name": "Корпус",
-     "value": "Напольный, на колёсах"
-    }
-   ],
-   "tags": [
-    "multi",
-    "flow"
-   ],
-   "seoTitle": "",
-   "seoDescription": "",
-   "hidden": false
-  },
-  {
-   "id": "magneto",
-   "slug": "magneto-360",
-   "cat": "multi",
-   "name": "MAGNETO 360",
-   "kind": "ELOS + RF + неодимовый лазер",
-   "price": 199990,
-   "priceOld": null,
-   "availability": "InStock",
-   "img": "c_magneto.webp",
-   "fit": "contain",
-   "pos": "",
-   "imgAlt": "",
-   "badges": [
-    {
-     "type": "l",
-     "text": "Обновлённая версия"
-    }
-   ],
-   "chips": [
-    "ELOS · RF · Nd:YAG",
-    "8 процедур"
-   ],
-   "lead": "Обновлённая версия MAGNETO 360: технологии ELOS, RF и неодимовый лазер для решения большинства эстетических задач кожи лица и тела.",
-   "description": "",
-   "gallery": [
-    "c_magneto.webp"
-   ],
-   "feats": [
-    "SHR- и ELOS-эпиляция",
-    "Фотоомоложение и осветление пигментных пятен",
-    "Лечение акне и удаление мелкой сосудистой сетки",
-    "Удаление татуировок и перманентного макияжа",
-    "Карбоновый пилинг",
-    "RF-лифтинг"
-   ],
-   "specs": [
-    {
-     "name": "Технологии",
-     "value": "ELOS · RF · неодимовый лазер"
-    },
-    {
-     "name": "Версия",
-     "value": "Обновлённая"
-    }
-   ],
-   "tags": [
-    "multi",
-    "flow"
    ],
    "seoTitle": "",
    "seoDescription": "",
@@ -2093,10 +1937,10 @@
    "cat": "face",
    "name": "Микроигольчатый RF Scarlet",
    "kind": "Фракционный RF-лифтинг",
-   "price": 89990,
+   "price": 109990,
    "priceOld": null,
    "availability": "InStock",
-   "img": "c_scarlet.webp",
+   "img": "6.webp",
    "fit": "contain",
    "pos": "",
    "imgAlt": "",
@@ -2109,7 +1953,7 @@
    "lead": "Фракционное и радиочастотное воздействие на глубокие слои кожи: микроиглы запускают ускоренную регенерацию, а RF-волны нагревают дерму до 40–60 °C — фибробласты начинают производить новый коллаген и эластин.",
    "description": "",
    "gallery": [
-    "c_scarlet.webp",
+    "6.webp",
     "doc_rf.webp",
     "scar_room.webp",
     "scar_kit.webp",
@@ -2230,7 +2074,7 @@
    "cat": "face",
    "name": "Hydrofacial H2O2 · 7 в 1",
    "kind": "Косметологический комбайн",
-   "price": 34990,
+   "price": 44990,
    "priceOld": null,
    "availability": "InStock",
    "img": "c_hydro.webp",
@@ -2382,7 +2226,7 @@
    "cat": "spa",
    "name": "SPA-кушетка с раковиной",
    "kind": "Head SPA · массаж",
-   "price": 179990,
+   "price": 199990,
    "priceOld": null,
    "availability": "InStock",
    "img": "st_headspa.webp",
