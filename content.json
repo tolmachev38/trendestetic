@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 4,
-  "updated": "2026-11-05T09:05:56.570Z"
+  "updated": "2026-11-08T14:57:27.750Z"
  },
  "site": {
   "name": "Trend Esthetic",
@@ -1995,7 +1995,7 @@
    "price": 49990,
    "priceOld": null,
    "availability": "InStock",
-   "img": "infraslim.webp",
+   "img": "1.webp",
    "fit": "cover",
    "pos": "",
    "imgAlt": "",
@@ -2012,7 +2012,11 @@
    "lead": "Две функции в одном аппарате: прессомассаж, который влияет на лимфу и кровь, и термотерапия — физиотерапевтические и косметологические методы с использованием тепла.",
    "description": "",
    "gallery": [
-    "infraslim.webp"
+    "1.webp",
+    "2.webp",
+    "3.webp",
+    "4.webp",
+    "5.webp"
    ],
    "feats": [
     "Прессомассаж — лимфодренаж и кровообращение",
