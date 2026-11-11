@@ -8,7 +8,14 @@ const BASE = root.dataset.base || '', PAGE = root.dataset.page || 'home';
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches, fine = matchMedia('(pointer: fine)').matches, motion = !reduce;
 const P = f => !f ? '' : /^(https?:|data:|blob:)/.test(f) ? f : BASE + 'assets/img/' + f;
 const fmt = n => String(Math.round(+n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-const rub = n => n == null || n === '' || isNaN(+n) ? 'По запросу' : fmt(n) + ' ₽';
+// подписи интерфейса из админки («Подписи и кнопки»); второй аргумент — запасной текст
+const T = (k, def, vars) => { let v = (D.ui && D.ui[k]) || def || k; if (vars) for (const n in vars) v = String(v).split('{' + n + '}').join(vars[n]); return v; };
+const rub = n => n == null || n === '' || isNaN(+n) ? T('priceRequest', 'По запросу') : fmt(n) + ' ₽';
+// кадр фото из админки («Кадр на сайте»): fit cover/contain/fit, фокус x/y, фон
+const frame = (n, p) => { const m = (D.media || {})[n]; if (m) return { fit: m[0] || (/^c_/.test(n) ? 'contain' : 'cover'), pos: m[1] + '% ' + m[2] + '%', bg: m[3] || '' }; if (p && n === p.img) return { fit: p.fit || 'cover', pos: p.pos || '', bg: '' }; return { fit: /^c_/.test(n || '') ? 'contain' : 'cover', pos: '', bg: '' }; };
+const applyFrame = (img, f) => { img.style.objectFit = f.fit === 'fit' ? 'contain' : ''; img.style.objectPosition = f.fit !== 'contain' && f.pos ? f.pos : ''; img.style.background = f.fit === 'fit' && f.bg ? f.bg : ''; };
+const frameAttr = f => { let s = ''; if (f.fit === 'fit') s += 'object-fit:contain;'; if (f.fit !== 'contain' && f.pos) s += 'object-position:' + f.pos + ';'; if (f.fit === 'fit' && f.bg) s += 'background:' + f.bg + ';'; return s ? ` style="${esc(s)}"` : ''; };
+const oldHtml = p => p && p.old ? ` <s class="price-old"${p.until ? ` data-until="${esc(p.until)}"` : ''}>${rub(p.old)}</s>` : '';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const byId = id => (D.products || []).find(p => p.id === id);
 const pUrl = p => BASE + 'apparaty/' + p.slug + '/';
@@ -34,7 +41,7 @@ function menu(open) {
   document.body.classList.toggle('menu-open', open); if (open && hdr) hdr.classList.remove('hide');
   if (lenis) open ? lenis.stop() : lenis.start();
   root.classList.toggle('lock', open);
-  if (burger) { burger.setAttribute('aria-expanded', open); burger.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню'); }
+  if (burger) { burger.setAttribute('aria-expanded', open); burger.setAttribute('aria-label', open ? T('menuClose', 'Закрыть меню') : T('menuOpen', 'Открыть меню')); }
 }
 burger && burger.addEventListener('click', () => menu(!document.body.classList.contains('menu-open')));
 $$('.mnav a,.mnav button').forEach(a => a.addEventListener('click', () => menu(false)));
@@ -88,6 +95,9 @@ if (pr) {
   pIO.observe($('#progStage')); pr.addEventListener('pointerdown', () => pr.dataset.touched = 1);
 }
 
+/* ===================== акции: после даты окончания прячем старую цену, скидку и срок ===================== */
+$$('[data-until]').forEach(e => { const d = new Date(e.dataset.until + 'T23:59:59'); if (!isNaN(d) && d < new Date()) e.remove(); });
+
 /* ===================== catalog (filter / sort / reveal / tilt) ===================== */
 const cardIO = new IntersectionObserver(es => { es.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top || a.boundingClientRect.left - b.boundingClientRect.left).forEach((e, k) => { e.target.style.setProperty('--i', k); e.target.classList.add('in'); cardIO.unobserve(e.target); }); }, { rootMargin: '0px 0px -6% 0px', threshold: .06 });
 $$('.card').forEach(c => cardIO.observe(c));
@@ -98,7 +108,7 @@ if (grid && chips) {
   const render = () => {
     const list = cards.slice().sort((a, b) => sort === 'def' ? a.dataset.idx - b.dataset.idx : ((a.dataset.price === '' ? 1e12 : +a.dataset.price) - (b.dataset.price === '' ? 1e12 : +b.dataset.price)) * (sort === 'asc' ? 1 : -1));
     let k = 0;
-    list.forEach(c => { const show = cat === 'all' || c.dataset.cat === cat; c.hidden = !show; grid.appendChild(c); if (show) { c.classList.remove('in'); c.style.setProperty('--i', Math.min(k++, 8)); } });
+    list.forEach(c => { const show = cat === 'all' || (cat === 'sale' ? !!c.dataset.sale : c.dataset.cat === cat); c.hidden = !show; grid.appendChild(c); if (show) { c.classList.remove('in'); c.style.setProperty('--i', Math.min(k++, 8)); } });
     requestAnimationFrame(() => requestAnimationFrame(() => list.forEach(c => { if (!c.hidden) c.classList.add('in'); })));
   };
   chips.addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; cat = b.dataset.cat; $$('.chip', chips).forEach(c => c.setAttribute('aria-pressed', c === b)); render(); });
@@ -112,18 +122,18 @@ if (fine && motion) {
 /* ===================== product sheet (modal) ===================== */
 const pm = $('#pm'); let cur = null;
 function setMain(n) {
-  const m = $('#pmMain'), im = $('#pmImg'), isCut = /^c_/.test(n); im.classList.add('swap');
-  setTimeout(() => { m.className = 'pm-main ' + (isCut ? 'contain' : 'cover'); m.style.setProperty('--bgi', isCut ? 'none' : `url("${new URL(P(n), location.href).href}")`); im.src = P(n); requestAnimationFrame(() => im.classList.remove('swap')); }, 180);
+  const m = $('#pmMain'), im = $('#pmImg'), f = frame(n, cur), isCut = f.fit === 'contain'; im.classList.add('swap');
+  setTimeout(() => { m.className = 'pm-main ' + (isCut ? 'contain' : 'cover'); m.style.setProperty('--bgi', isCut ? 'none' : `url("${new URL(P(n), location.href).href}")`); im.src = P(n); applyFrame(im, f); requestAnimationFrame(() => im.classList.remove('swap')); }, 180);
   $$('#pmTh button').forEach(b => b.setAttribute('aria-current', b.dataset.n === n));
 }
 function openProduct(id, push = true) {
   const p = byId(id); if (!p || !pm) return false; cur = p;
-  $('#pmK').textContent = (CATS[p.cat] || '') + ' · ' + p.kind; $('#pmN').textContent = p.name; $('#pmP').textContent = rub(p.price);
+  $('#pmK').textContent = (CATS[p.cat] || '') + ' · ' + p.kind; $('#pmN').textContent = p.name; $('#pmP').innerHTML = esc(rub(p.price)) + oldHtml(p);
   $('#pmPs').textContent = p.price == null ? (D.priceRequestNote || '') : (D.priceNote || ''); $('#pmL').textContent = p.lead || '';
   const pg = $('#pmPage'); if (pg) pg.href = pUrl(p);
-  $('#pmF').innerHTML = p.feats.length ? `<p class="pm-h">Особенности и преимущества</p><ul class="pm-feats" style="margin-top:12px">${p.feats.map((f, k) => `<li style="--i:${k}"><svg><use href="#i-check"/></svg><span>${esc(f)}</span></li>`).join('')}</ul>` : '';
-  $('#pmS').innerHTML = p.specs.length ? `<p class="pm-h">Технические характеристики</p><dl class="pm-specs" style="margin-top:12px">${p.specs.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : `<p class="pm-h">Технические характеристики</p><p style="margin:12px 0 0;color:var(--mu-l)">Характеристики и цену уточняйте у менеджера — пришлём полное описание модели.</p>`;
-  $('#pmTh').innerHTML = p.gallery.length > 1 ? p.gallery.map((n, k) => `<button type="button" style="--i:${k}" data-n="${esc(n)}" class="${/^c_/.test(n) ? 'ct' : ''}" aria-label="Фото ${k + 1}"><img src="${P(n)}" alt="" loading="lazy"></button>`).join('') : '';
+  $('#pmF').innerHTML = p.feats.length ? `<p class="pm-h">${esc(T('featsTitle', 'Особенности и преимущества'))}</p><ul class="pm-feats" style="margin-top:12px">${p.feats.map((f, k) => `<li style="--i:${k}"><svg><use href="#i-check"/></svg><span>${esc(f)}</span></li>`).join('')}</ul>` : '';
+  $('#pmS').innerHTML = p.specs.length ? `<p class="pm-h">${esc(T('specsTitle', 'Технические характеристики'))}</p><dl class="pm-specs" style="margin-top:12px">${p.specs.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : `<p class="pm-h">${esc(T('specsTitle', 'Технические характеристики'))}</p><p style="margin:12px 0 0;color:var(--mu-l)">${esc(T('specsEmpty', 'Характеристики и цену уточняйте у менеджера — пришлём полное описание модели.'))}</p>`;
+  $('#pmTh').innerHTML = p.gallery.length > 1 ? p.gallery.map((n, k) => `<button type="button" style="--i:${k}" data-n="${esc(n)}" class="${frame(n, p).fit === 'contain' ? 'ct' : ''}" aria-label="${esc(T('photo', 'Фото'))} ${k + 1}"><img src="${P(n)}" alt="" loading="lazy"${frameAttr(frame(n, p))}></button>`).join('') : '';
   setMain(p.gallery[0] || p.img);
   $$('.pm-body>*', pm).forEach((c, k) => c.style.setProperty('--i', k));
   pm.classList.remove('pm-on'); if (!pm.open) pm.showModal(); requestAnimationFrame(() => requestAnimationFrame(() => pm.classList.add('pm-on')));
@@ -149,9 +159,9 @@ $$('dialog').forEach(d => d.addEventListener('click', e => { if (e.target === d 
 /* ===================== product page gallery ===================== */
 const ppId = document.body.dataset.product, ppP = ppId && byId(ppId);
 if (ppP) {
-  D.lb.product = ppP.gallery.map((g, i) => [g, ppP.name + ' — фото ' + (i + 1)]);
+  D.lb.product = ppP.gallery.map((g, i) => [g, ppP.name + ' — ' + T('photo', 'Фото').toLowerCase() + ' ' + (i + 1)]);
   const main = $('#ppImg'), wrap = $('.pp-main');
-  $$('.pp-th button').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.pp, g = ppP.gallery[i]; main.style.opacity = 0; setTimeout(() => { main.src = P(g); wrap.className = 'pp-main ' + (/^c_/.test(g) ? 'contain' : 'cover'); wrap.dataset.i = i; main.style.opacity = 1; }, 150); $$('.pp-th button').forEach(x => x.setAttribute('aria-current', x === b)); }));
+  $$('.pp-th button').forEach(b => b.addEventListener('click', () => { const i = +b.dataset.pp, g = ppP.gallery[i]; main.style.opacity = 0; setTimeout(() => { main.src = P(g); const f = frame(g, ppP); applyFrame(main, f); wrap.className = 'pp-main ' + (f.fit === 'contain' ? 'contain' : 'cover'); wrap.dataset.i = i; main.style.opacity = 1; }, 150); $$('.pp-th button').forEach(x => x.setAttribute('aria-current', x === b)); }));
 }
 $$('[data-lead-product]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); toLead(a.dataset.leadProduct); }));
 
@@ -203,7 +213,7 @@ if (rDev) {
     $$('.roi .rng').forEach(fillR); $('#oCheck').textContent = rub(ch); $('#oPer').textContent = per; $('#oDays').textContent = days; $('#oCost').textContent = rub(cost);
     const rev = ch * per * days, prof = rev - cost; tw('#oRev', rev); tw('#oProf', prof); tw('#oYear', prof * 12 - price);
     const ob = $('#oPay');
-    if (prof <= 0) { ob.textContent = 'Не окупится'; $('#oPayS').textContent = 'При таких вводных расходы выше выручки — увеличьте чек или число клиентов.'; }
+    if (prof <= 0) { ob.textContent = T('roiNever', 'Не окупится'); $('#oPayS').textContent = T('roiNeverText', 'При таких вводных расходы выше выручки — увеличьте чек или число клиентов.'); }
     else { const m = price / prof, [n, w] = months(m), t = m < 1 ? '<1 мес' : `${n} ${w}`; if (ob.textContent !== t) { ob.textContent = t; ob.classList.remove('bump'); void ob.offsetWidth; ob.classList.add('bump'); } $('#oPayS').textContent = `${p.name} за ${rub(price)} при прибыли ${rub(prof)} в месяц`; }
     chart(price, prof);
   }
@@ -229,16 +239,16 @@ if (qz) {
     $('#qzBar').style.setProperty('--w', (i / Q.length * 100 || 8) + '%'); const b = $('#qzBody'); b.classList.remove('qz-anim'); void b.offsetWidth; b.classList.add('qz-anim');
     if (i < Q.length) {
       const q = Q[i];
-      b.innerHTML = `<span class="qz-k">Вопрос ${i + 1} из ${Q.length}</span><h3 id="qzH">${esc(q.title)}</h3><div class="qz-opts">${q.options.map((o, k) => `<button class="qz-o" style="--i:${k}" type="button" data-v="${esc(o.v)}"><b>${esc(o.t)}</b><span>${esc(o.d)}</span></button>`).join('')}</div>${i ? '<button class="qz-back" type="button" data-back>← Назад</button>' : ''}`;
+      b.innerHTML = `<span class="qz-k">${esc(T('qzStep', 'Вопрос {n} из {total}', { n: i + 1, total: Q.length }))}</span><h3 id="qzH">${esc(q.title)}</h3><div class="qz-opts">${q.options.map((o, k) => `<button class="qz-o" style="--i:${k}" type="button" data-v="${esc(o.v)}"><b>${esc(o.t)}</b><span>${esc(o.d)}</span></button>`).join('')}</div>${i ? `<button class="qz-back" type="button" data-back>${esc(T('qzBack', '← Назад'))}</button>` : ''}`;
       $$('.qz-o', b).forEach(o => o.onclick = () => { qs[q.key] = q.key === 'budget' ? +o.dataset.v : o.dataset.v; qzRender(i + 1); });
       const bk = $('[data-back]', b); bk && (bk.onclick = () => qzRender(i - 1)); const f = $('.qz-o', b); f && f.focus({ preventScroll: true }); return;
     }
     const { list, over } = recommend({ cat: qs.cat, space: qs.space, budget: qs.budget || 1e9 }); $('#qzBar').style.setProperty('--w', '100%');
-    b.innerHTML = `<span class="qz-k">Подбор готов</span><h3 id="qzH">${esc(D.quiz.resultTitle || 'Вам подойдут')}</h3>${over ? `<p class="qz-note">${esc(D.quiz.overNote || '')}</p>` : ''}<div class="qz-res">${list.map((p, k) => `<a class="qz-r" style="--i:${k}" href="${pUrl(p)}" data-pick="${esc(p.id)}"><span class="im ${p.fit === 'contain' ? 'contain' : 'cover'}"><img src="${P(p.img)}" alt=""${p.pos ? ` style="object-position:${esc(p.pos)}"` : ''}></span><span><b>${esc(p.name)}</b><small>${esc(p.kind)}</small></span><span class="pr">${rub(p.price)}</span></a>`).join('')}</div>
-    <button class="btn btn-fire" type="button" data-qlead style="width:100%">${esc(D.quiz.resultBtn || 'Получить предложение')} <svg><use href="#i-arrow"/></svg></button><button class="qz-back" type="button" data-again>Пройти заново</button>`;
+    b.innerHTML = `<span class="qz-k">${esc(T('qzReady', 'Подбор готов'))}</span><h3 id="qzH">${esc(D.quiz.resultTitle || 'Вам подойдут')}</h3>${over ? `<p class="qz-note">${esc(D.quiz.overNote || '')}</p>` : ''}<div class="qz-res">${list.map((p, k) => `<a class="qz-r" style="--i:${k}" href="${pUrl(p)}" data-pick="${esc(p.id)}"><span class="im ${p.fit === 'contain' ? 'contain' : 'cover'}"><img src="${P(p.img)}" alt=""${frameAttr(frame(p.img, p))}></span><span><b>${esc(p.name)}</b><small>${esc(p.kind)}</small></span><span class="pr">${rub(p.price)}</span></a>`).join('')}</div>
+    <button class="btn btn-fire" type="button" data-qlead style="width:100%">${esc(D.quiz.resultBtn || T('getOffer', 'Получить предложение'))} <svg><use href="#i-arrow"/></svg></button><button class="qz-back" type="button" data-again>${esc(T('qzAgain', 'Пройти заново'))}</button>`;
     $$('[data-pick]', b).forEach(x => x.onclick = e => { if (pm) { e.preventDefault(); qz.close(); openProduct(x.dataset.pick); } });
     $('[data-again]', b).onclick = () => { qs = {}; qzRender(0); };
-    $('[data-qlead]', b).onclick = () => { qz.close(); toLead('Подбор: ' + list.map(p => p.name).join(', ')); };
+    $('[data-qlead]', b).onclick = () => { qz.close(); toLead(T('qzPrefix', 'Подбор: ') + list.map(p => p.name).join(', ')); };
   };
   $$('[data-quiz]').forEach(b => b.addEventListener('click', () => { menu(false); qs = {}; qzRender(0); qz.showModal(); }));
 }
@@ -277,12 +287,12 @@ if (form && ph) {
   ph.addEventListener('input', () => { let d = ph.value.replace(/\D/g, ''); if (d.startsWith('8')) d = '7' + d.slice(1); if (!d.startsWith('7')) d = '7' + d; d = d.slice(0, 11); const p = d.slice(1); let s = '+7'; if (p.length) s += ' (' + p.slice(0, 3); if (p.length >= 3) s += ') ' + p.slice(3, 6); if (p.length >= 6) s += '-' + p.slice(6, 8); if (p.length >= 8) s += '-' + p.slice(8, 10); ph.value = s; $('#fPhoneW').classList.remove('err'); });
   form.addEventListener('submit', async e => {
     e.preventDefault(); const digits = ph.value.replace(/\D/g, '');
-    if (digits.length < 11) { $('#fPhoneW').classList.add('err'); ph.focus(); toast('Укажите телефон полностью'); return; }
-    if (!$('#fAgree').checked) { toast('Нужно согласие на обработку данных'); return; }
+    if (digits.length < 11) { $('#fPhoneW').classList.add('err'); ph.focus(); toast(T('errPhone', 'Укажите телефон полностью')); return; }
+    if (!$('#fAgree').checked) { toast(T('errConsent', 'Нужно согласие на обработку данных')); return; }
     const fd = new FormData(form), data = { name: fd.get('name') || '', phone: ph.value, want: fd.get('want'), pay: fd.get('pay'), msg: fd.get('msg') || '' };
     const text = `Заявка с сайта ${D.siteName || ''}\nИмя: ${data.name || '—'}\nТелефон: ${data.phone}\nИнтересует: ${data.want}\nОплата: ${data.pay}\nКомментарий: ${data.msg || '—'}\nСтраница: ${location.href}`;
     const how = await sendLead(text, data); form.classList.add('sent');
-    toast(how === 'webhook' ? 'Заявка отправлена — скоро свяжемся' : 'Текст заявки скопирован — отправьте его в Telegram');
+    toast(how === 'webhook' ? T('okSent', 'Заявка отправлена — скоро свяжемся') : T('okCopied', 'Текст заявки скопирован — отправьте его в Telegram'));
     try { window.ym && window.TE_YM && ym(window.TE_YM, 'reachGoal', 'lead'); } catch (er) {}
   });
 }
@@ -295,7 +305,7 @@ if (form && ph) {
   try { const t = +sessionStorage.getItem(POS); if (t > 0) audio.currentTime = t; } catch (e) {}
   const target = Math.max(0, Math.min(1, isNaN(+M.volume) ? .35 : +M.volume)); let on = false, raf = 0;
   const fade = (to, ms, cb) => { cancelAnimationFrame(raf); const from = audio.volume, t0 = performance.now(); const f = t => { const k = Math.min(1, (t - t0) / ms); audio.volume = Math.max(0, Math.min(1, from + (to - from) * k)); if (k < 1) raf = requestAnimationFrame(f); else cb && cb(); }; raf = requestAnimationFrame(f); };
-  const ui = () => { btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', on); btn.setAttribute('aria-label', on ? 'Выключить музыку' : 'Включить музыку'); };
+  const ui = () => { btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', on); btn.setAttribute('aria-label', on ? T('musicOff', 'Выключить музыку') : T('musicOn', 'Включить музыку')); };
   const play = async () => { try { await audio.play(); on = true; ui(); fade(target, 1600); return true; } catch (e) { return false; } };
   const stop = () => { on = false; ui(); fade(0, 450, () => audio.pause()); };
   const evs = ['pointerdown', 'keydown', 'touchstart'];
@@ -341,7 +351,7 @@ const fb = $('.ftr-big'); if (fb) fb.innerHTML = [...fb.textContent].map((c, i) 
 $$('.btn').forEach(b => { const t = [...b.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()); if (!t) return; const x = t.textContent.trim(); const r = document.createElement('span'); r.className = 'roll'; r.innerHTML = `<span data-t="${esc(x)}">${esc(x)}</span>`; t.replaceWith(r); });
 $$('.hero-stats>div').forEach((d, i) => d.style.setProperty('--i', i));
 $$('.tidx-l span').forEach((d, i) => d.style.setProperty('--i', i));
-$$('.rail figure,.mosaic figure,.route-proof figure').forEach(f => f.dataset.cursor = 'Смотреть');
+$$('.rail figure,.mosaic figure,.route-proof figure').forEach(f => f.dataset.cursor = T('cursorView', 'Смотреть'));
 
 function startHero() { document.body.classList.add('ready'); }
 let seen = null; try { seen = sessionStorage.getItem('te-intro'); } catch (e) { seen = 1; }

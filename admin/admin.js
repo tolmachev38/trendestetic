@@ -15,7 +15,7 @@ let C = null;               // текущий content
 let loaded = null;          // снимок после загрузки / публикации
 let remoteSha = null;       // sha content.json в репозитории (для проверки конфликтов)
 let repoImages = [];        // имена файлов в assets/img репозитория
-const pending = {};         // путь → { b64, url, size } — новые бинарные файлы
+const pending = {};         // путь → { b64, url, size } — новые бинарные файлы (копия — в IndexedDB до публикации)
 const deleted = new Set();  // пути к удалению
 let current = 'site', curProduct = 0;
 let cfg = loadCfg();
@@ -35,6 +35,23 @@ function saveCfg(c, remember) {
   else { const pub = Object.assign({}, c, { token: '' }); localStorage.setItem(LS_CFG, JSON.stringify(pub)); sessionStorage.setItem(LS_CFG, s); }
 }
 const connected = () => !!(cfg.owner && cfg.repo && cfg.token);
+
+/* ===================== неопубликованные файлы: IndexedDB ===================== */
+const FILES = (() => {
+  let dbp = null;
+  const db = () => dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('te-admin', 1); r.onupgradeneeded = () => r.result.createObjectStore('files'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+  const run = async (mode, fn) => { const d = await db(); return new Promise((res, rej) => { const t = d.transaction('files', mode), q = fn(t.objectStore('files')); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }); };
+  const safe = f => (...a) => { try { return f(...a).catch(() => null); } catch (e) { return Promise.resolve(null); } };
+  return { put: safe((path, v) => run('readwrite', s => s.put(Object.assign({ path }, v), path))), del: safe(path => run('readwrite', s => s.delete(path))), clear: safe(() => run('readwrite', s => s.clear())), all: safe(() => run('readonly', s => s.getAll())) };
+})();
+const b64Blob = (b64, type) => new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], { type: type || 'application/octet-stream' });
+function setPending(path, b64, blob) { pending[path] = { b64, url: URL.createObjectURL(blob), size: blob.size }; FILES.put(path, { b64, type: blob.type, size: blob.size }); }
+function dropPending(path) { if (pending[path]) { URL.revokeObjectURL(pending[path].url); delete pending[path]; } FILES.del(path); }
+async function restorePending() {
+  const list = await FILES.all(); if (!list || !list.length) return 0;
+  list.forEach(v => { if (v && v.path && v.b64 && !pending[v.path]) { const blob = b64Blob(v.b64, v.type); pending[v.path] = { b64: v.b64, url: URL.createObjectURL(blob), size: v.size || blob.size }; } });
+  return list.length;
+}
 
 /* ===================== GitHub API ===================== */
 async function gh(path, opts = {}) {
@@ -64,19 +81,58 @@ async function load() {
     try { const r = await fetch('../content.json?ts=' + Date.now(), { cache: 'no-store' }); C = await r.json(); } catch (e2) { $('#ed').innerHTML = `<div class="banner warn">Не удалось загрузить content.json: ${esc(e.message)}. Откройте админку с опубликованного сайта или загрузите JSON через «Экспорт / импорт».</div>`; C = null; }
   }
   if (!C) return;
-  loaded = clone(C);
+  migrate(C);
+  const restored = await restorePending(); if (restored) setTimeout(() => toast(`Восстановлены неопубликованные файлы: ${restored} — они уйдут на GitHub при публикации`), 600);
+  loaded = clone(C); histReset();
   const d = getDraft();
   if (d && JSON.stringify(d.content) !== JSON.stringify(C)) draftBanner = d; else draftBanner = null;
   buildSide(); show(current); updateDirty(); pvPages(); refreshPreview();
 }
 let draftBanner = null;
+// приводим content.json старых версий к текущей схеме
+function migrate(c) {
+  if (!c || typeof c !== 'object') return c;
+  c.media = c.media && typeof c.media === 'object' && !Array.isArray(c.media) ? c.media : {};
+  c.ui = c.ui && typeof c.ui === 'object' && !Array.isArray(c.ui) ? c.ui : {};
+  (c.products || []).forEach(p => {
+    if (p.img && (p.fit || p.pos) && !c.media[p.img]) { const m = {}; if (p.fit === 'contain') m.fit = 'contain'; const xy = /(-?\d+(?:\.\d+)?)%\s+(-?\d+(?:\.\d+)?)%/.exec(p.pos || ''); if (xy) { m.x = +xy[1]; m.y = +xy[2]; } if (Object.keys(m).length) c.media[p.img] = m; }
+    delete p.fit; delete p.pos;
+    if (!('priceOld' in p)) p.priceOld = null; if (!('saleUntil' in p)) p.saleUntil = '';
+    p.badges = Array.isArray(p.badges) ? p.badges : [];
+  });
+  if (c.catalog && c.catalog.autoDiscount == null) c.catalog.autoDiscount = true;
+  return c;
+}
+
+/* ===================== история: отменить / вернуть ===================== */
+const hist = { stack: [], i: -1, t: 0, lock: false };
+const histBtns = () => { $('#btnUndo').disabled = hist.i <= 0; $('#btnRedo').disabled = hist.i >= hist.stack.length - 1; };
+function histReset() { clearTimeout(hist.t); hist.stack = [JSON.stringify(C)]; hist.i = 0; histBtns(); }
+function histCommit() { clearTimeout(hist.t); const s = JSON.stringify(C); if (s === hist.stack[hist.i]) return; hist.stack = hist.stack.slice(0, hist.i + 1); hist.stack.push(s); if (hist.stack.length > 100) hist.stack.shift(); hist.i = hist.stack.length - 1; histBtns(); }
+function histPush() { if (hist.lock || !C) return; clearTimeout(hist.t); hist.t = setTimeout(histCommit, 500); }
+function histGo(d) {
+  if (!C) return; histCommit(); const j = hist.i + d; if (j < 0 || j >= hist.stack.length) return;
+  hist.i = j; hist.lock = true; C = JSON.parse(hist.stack[j]); changed(); hist.lock = false; histBtns();
+  buildSide(); show(current); toast(d < 0 ? '↶ Отменено' : '↷ Возвращено');
+}
+$('#btnUndo').addEventListener('click', () => histGo(-1));
+$('#btnRedo').addEventListener('click', () => histGo(1));
+addEventListener('keydown', e => {
+  const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if (mod && k === 's') { e.preventDefault(); $('#btnPublish').click(); return; }
+  if (!mod || document.querySelector('dialog[open]')) return;
+  const typing = e.target.closest && e.target.closest('input,textarea,select,[contenteditable]');
+  if (typing) return; // внутри поля работает обычная отмена браузера
+  if ((k === 'z' || k === 'я') && !e.shiftKey) { e.preventDefault(); histGo(-1); }
+  else if (((k === 'z' || k === 'я') && e.shiftKey) || k === 'y' || k === 'н') { e.preventDefault(); histGo(1); }
+});
 function getDraft() { try { return JSON.parse(localStorage.getItem(LS_DRAFT) || 'null'); } catch (e) { return null; } }
 function setConn(ok, text) { const s = $('#conn'); s.classList.toggle('ok', ok); s.querySelector('span').textContent = text; }
 
 /* ===================== change tracking ===================== */
 let saveT = 0, pvT = 0;
 function changed() {
-  updateDirty();
+  updateDirty(); histPush();
   clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(LS_DRAFT, JSON.stringify({ at: Date.now(), content: C })); } catch (e) {} }, 500);
   clearTimeout(pvT); pvT = setTimeout(refreshPreview, 700);
 }
@@ -136,6 +192,7 @@ const SECTIONS = [
   { key: 'theme', title: 'Цвета', desc: 'Палитра сайта. Изменения сразу видны в предпросмотре.', custom: 'colors' },
   { key: 'music', title: 'Музыка', desc: 'Фоновая музыка с кнопкой включения/выключения. Браузеры разрешают звук только после первого клика/касания посетителя — до этого кнопка подсветится подсказкой.', fields: {
     enabled: BOOL('Музыка на сайте'), autoplay: BOOL('Включать автоматически'), file: MUSIC('Файл (mp3)'), title: T('Название трека (подсказка на кнопке)'), volume: NUM('Громкость (0…1)', { step: .05, min: 0, max: 1 }) } },
+  { key: 'ui', title: 'Подписи и кнопки', desc: 'Все мелкие надписи сайта: кнопки, подписи полей, сообщения формы, калькулятор, страница 404. Пустое поле — используется текст по умолчанию (он виден серым внутри поля).', custom: 'ui' },
   { g: 'Страница' },
   { key: 'header', title: 'Шапка и меню', fields: { ubarLeft: T('Верхняя строка — слева'), ubarItems: STRS('Верхняя строка — пункты справа'), ubarLinkText: T('Ссылка — текст'), ubarLinkUrl: T('Ссылка — адрес'), cta: T('Кнопка в шапке'), nav: LIST('Меню (компьютер)', { label: T('Текст'), href: T('Ссылка (#catalog или https://…)') }), mobileNav: LIST('Меню (телефон)', { label: T('Текст'), href: T('Ссылка'), num: T('Номер справа ({count} — число аппаратов)') }) } },
   { key: 'home', title: 'Порядок блоков', desc: 'Перетаскивайте стрелками, выключайте ненужные блоки главной страницы.', custom: 'order' },
@@ -157,6 +214,7 @@ const SECTIONS = [
     progress: LIST('Слайдер по сеансам', { img: IMG('Фото'), label: T('Подпись') }) }) },
   { key: 'catalog', title: '03 · Каталог (тексты)', desc: TOK, fields: Object.assign({}, HEAD3, {
     techIndexTitle: T('Заголовок строки технологий'), techIndex: STRS('Технологии'), priceNote: T('Подпись к цене'), priceRequestNote: T('Подпись, если цена «по запросу»'), sheetNotes: STRS('Плашки в карточке товара'),
+    autoDiscount: BOOL('Автоматически ставить значок скидки «−N%», если у товара указана старая цена', { hint: 'Текст значка и фильтра «Акции» меняется в разделе «Подписи и кнопки».' }),
     categories: LIST('Категории (у каждой — своя SEO-страница /katalog/…/)', { key: T('Ключ (латиницей, не меняйте у существующих)'), label: T('Короткое название (фильтр)'), name: T('Полное название (H1 страницы)'), slug: T('Адрес страницы (латиницей)'), seoTitle: TA('SEO title', { rows: 2 }), seoDescription: TA('SEO description', { rows: 3 }), intro: HT('Текст на странице категории') }),
     compare: OBJ('Таблица сравнения', Object.assign({}, HEAD3, { headers: STRS('Заголовки столбцов'), rows: LIST('Строки', { id: PROD('Товар'), note: T('Подпись'), power: T('Мощность (текст)'), powerVal: NUM('Мощность (число для полоски)'), res: T('Ресурс (текст)'), resVal: NUM('Ресурс (число)'), spot: T('Пятно'), screen: T('Экран'), apower: T('Мощность аппарата') }), footer: T('Строка под таблицей'), hint: T('Подсказка на телефоне') })),
     tips: LIST('Подсказки под таблицей', { icon: ICON('Иконка'), title: T('Заголовок'), text: TA('Текст') }) }) },
@@ -182,10 +240,12 @@ const SECTIONS = [
 ];
 const PRODUCT = {
   name: T('Название'), kind: T('Тип (подпись над названием)'), cat: { t: 'cat', label: 'Категория' }, price: NUM('Цена, ₽ (пусто — «По запросу»)'),
+  priceOld: NUM('Старая цена, ₽ — для акции', { hint: 'Если больше цены — на сайте она будет зачёркнута, появится значок «−N%» и товар попадёт в фильтр «Акции». Пусто — без акции.' }),
+  saleUntil: { t: 'date', label: 'Акция действует до (необязательно)', hint: 'На странице товара появится «Акция до …». После этой даты старая цена и значок скидки скроются сами.' },
   availability: SEL('Наличие (для Schema.org)', [['InStock', 'В наличии'], ['PreOrder', 'Под заказ'], ['BackOrder', 'Ожидается'], ['OutOfStock', 'Нет в наличии']]), hidden: BOOL('Скрыть товар с сайта'),
   slug: { t: 'slug', label: 'Адрес страницы /apparaty/…/ (латиницей)' }, id: T('ID (технический, латиницей; меняйте только у новых товаров)'),
-  img: IMG('Фото для карточки'), fit: SEL('Как вписывать фото', [['cover', 'Заполнить (фото)'], ['contain', 'Целиком (вырезанный аппарат)']]), pos: T('Фокус кадра (например 50% 30%)'), imgAlt: T('Alt фото (для SEO)'),
-  badges: LIST('Плашки', { type: SEL('Вид', [['live', 'Зелёная точка («В нашей студии»)'], ['f', 'Золотая'], ['l', 'Светлая']]), text: T('Текст') }),
+  img: IMG('Фото для карточки', { hint: '✎ Редактор — обрезка, поворот, фильтры. ⌖ Кадр — как фото вписывается в карточку: заполнить с фокусом, целиком или как вырезанный аппарат.' }), imgAlt: T('Alt фото (для SEO)'),
+  badges: { t: 'badges', label: 'Плашки на фото: Акция, Хит, Новинка…' },
   chips: STRS('Короткие характеристики на карточке'), lead: TA('Короткое описание', { rows: 3 }), description: HT('Подробное описание (на странице товара)'),
   gallery: IMGS('Галерея'), feats: STRS('Особенности и преимущества', { area: 1 }), specs: LIST('Технические характеристики', { name: T('Параметр'), value: T('Значение') }),
   tags: { t: 'tags', label: 'Метки для подбора', options: [['flow', 'Для потока клиентов'], ['compact', 'Компактный'], ['mobile', 'Для выездов'], ['budget', 'Бюджетный'], ['multi', 'Многофункциональный']] },
@@ -193,8 +253,33 @@ const PRODUCT = {
 };
 
 /* ===================== sidebar ===================== */
+/* поиск по всем текстам сайта: показывает разделы и товары, где встречается фраза */
+let findQ = '';
+const plain = v => JSON.stringify(v == null ? '' : v).replace(/<[^>]+>/g, ' ').toLowerCase();
+function findHits(q) {
+  const hits = [], D = R.UI_DEF || {};
+  SECTIONS.forEach(x => { if (!x.key || x.key === 'products' || x.key === 'ui' || x.custom === 'media' || x.custom === 'io' || x.custom === 'help') return; const t = plain(C[x.key]); const i = t.indexOf(q); if (i >= 0 || x.title.toLowerCase().includes(q)) hits.push({ key: x.key, title: x.title, ctx: i >= 0 ? t.slice(Math.max(0, i - 24), i + 50).replace(/\\n|[{}"[\]]/g, ' ') : '' }); });
+  (C.products || []).forEach((p, i) => { const t = plain(p), j = t.indexOf(q); if (j >= 0) hits.push({ key: 'products', prod: i, title: 'Товар: ' + p.name, ctx: t.slice(Math.max(0, j - 24), j + 50).replace(/[{}"[\]]/g, ' ') }); });
+  const ui = Object.keys(D).filter(k => (D[k][1] + ' ' + D[k][2] + ' ' + ((C.ui || {})[k] || '')).toLowerCase().includes(q));
+  if (ui.length) hits.push({ key: 'ui', title: 'Подписи и кнопки', ctx: ui.slice(0, 3).map(k => (C.ui || {})[k] || D[k][2]).join(' · ') });
+  return hits;
+}
+function focusFind() {
+  if (!findQ) return;
+  setTimeout(() => { const f = [...$$('#ed input[type=text],#ed textarea,#ed input:not([type])')].find(i => i.value.toLowerCase().includes(findQ)); if (f) { f.scrollIntoView({ block: 'center', behavior: 'smooth' }); f.focus({ preventScroll: true }); const i = f.value.toLowerCase().indexOf(findQ); try { f.setSelectionRange(i, i + findQ.length); } catch (e) {} } }, 60);
+}
 function buildSide() {
   const s = $('#side'); s.innerHTML = '';
+  const q = el('input', { type: 'search', placeholder: '🔍 Найти текст на сайте…', value: findQ });
+  q.addEventListener('input', () => { findQ = q.value.trim().toLowerCase(); clearTimeout(q._t); q._t = setTimeout(() => { buildSide(); const n = $('#side input[type=search]'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 200); });
+  s.append(el('div', { class: 'side-search' }, q));
+  if (findQ.length > 1) {
+    const hits = findHits(findQ);
+    s.append(el('h4', {}, hits.length ? `Найдено: ${hits.length}` : 'Ничего не найдено'));
+    hits.forEach(h => s.append(el('button', { type: 'button', class: 'hit', onclick: () => { if (h.prod != null) curProduct = h.prod; show(h.key); focusFind(); } }, h.title, h.ctx ? el('small', {}, '…' + h.ctx + '…') : null)));
+    s.append(el('button', { type: 'button', class: 'b sm ghost', style: 'margin-top:8px', onclick: () => { findQ = ''; buildSide(); } }, '✕ Сбросить поиск'));
+    return;
+  }
   SECTIONS.forEach(x => {
     if (x.g) { s.append(el('h4', {}, x.g)); return; }
     const extra = x.key === 'products' ? ` ${(C.products || []).length}` : x.key === 'media' ? ` ${allImages().length}` : '';
@@ -204,7 +289,7 @@ function buildSide() {
 function show(key) {
   current = key; $$('#side button').forEach(b => b.classList.toggle('on', b.dataset.k === key));
   const sec = SECTIONS.find(x => x.key === key); const ed = $('#ed'); ed.innerHTML = ''; ed.scrollTop = 0;
-  if (draftBanner) ed.append(el('div', { class: 'banner' }, `Найден несохранённый черновик от ${new Date(draftBanner.at).toLocaleString('ru-RU')}.`, el('button', { class: 'b sm gold', type: 'button', onclick: () => { C = draftBanner.content; draftBanner = null; changed(); buildSide(); show(current); toast('Черновик восстановлен'); } }, 'Восстановить'), el('button', { class: 'b sm ghost', type: 'button', onclick: () => { localStorage.removeItem(LS_DRAFT); draftBanner = null; show(current); } }, 'Удалить черновик')));
+  if (draftBanner) ed.append(el('div', { class: 'banner' }, `Найден несохранённый черновик от ${new Date(draftBanner.at).toLocaleString('ru-RU')}.`, el('button', { class: 'b sm gold', type: 'button', onclick: () => { C = migrate(draftBanner.content); draftBanner = null; changed(); buildSide(); show(current); toast('Черновик восстановлен'); } }, 'Восстановить'), el('button', { class: 'b sm ghost', type: 'button', onclick: () => { localStorage.removeItem(LS_DRAFT); draftBanner = null; show(current); } }, 'Удалить черновик')));
   if (C.site && /USERNAME|REPO/.test(C.site.url || '')) {
     const guess = cfg.owner && cfg.repo ? (cfg.repo.toLowerCase() === (cfg.owner + '.github.io').toLowerCase() ? `https://${cfg.owner.toLowerCase()}.github.io/` : `https://${cfg.owner.toLowerCase()}.github.io/${cfg.repo}/`) : '';
     ed.append(el('div', { class: 'banner warn' }, 'Укажите настоящий адрес сайта в разделе «Сайт» — без него canonical, sitemap и разметка для поисковиков будут неверными.',
@@ -236,6 +321,8 @@ function field(f, path) {
     case 'cat': { const s = el('select'); ((C.catalog || {}).categories || []).forEach(k => s.append(el('option', { value: k.key, selected: k.key === v }, k.name || k.label))); s.addEventListener('change', () => { upd(s.value); refreshPList(); }); return wrap(f, s); }
     case 'slug': { const i = el('input', { type: 'text', value: v || '' }); i.addEventListener('input', () => upd(i.value.trim())); const b = el('button', { class: 'b sm ghost', type: 'button', onclick: () => { const p = getP(C, path.slice(0, -1)); i.value = R.slugify(p.name); upd(i.value); } }, 'Из названия'); return wrap(f, el('div', { class: 'imgf' }, i, b)); }
     case 'tags': { const box = el('div', { class: 'grid2' }); const cur = Array.isArray(v) ? v.slice() : []; f.options.forEach(([val, lab]) => { const c = el('input', { type: 'checkbox' }); c.checked = cur.includes(val); c.addEventListener('change', () => { const a = (getP(C, path) || []).filter(x => x !== val); if (c.checked) a.push(val); upd(a); }); box.append(el('label', { class: 'chk' }, c, lab)); }); return wrap(f, box); }
+    case 'date': { const i = el('input', { type: 'date', value: /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '' }); i.addEventListener('input', () => upd(i.value)); return wrap(f, el('div', { class: 'imgf' }, i, el('button', { class: 'ib del', type: 'button', title: 'Очистить', onclick: () => { i.value = ''; upd(''); } }, '✕'))); }
+    case 'badges': return badgesField(f, path);
     case 'img': return imgField(f, path, v, upd);
     case 'imgs': return imgsField(f, path);
     case 'music': return musicField(f, path, v, upd);
@@ -263,11 +350,41 @@ function strsField(f, path) {
   };
   draw(); return wrap(f, box);
 }
-function blank(itemSchema) { const o = {}; for (const k in itemSchema) { const s = itemSchema[k]; o[k] = s.t === 'num' ? null : s.t === 'bool' ? false : s.t === 'strs' || s.t === 'list' || s.t === 'imgs' || s.t === 'tags' ? [] : s.t === 'obj' ? blank(s.fields) : s.t === 'sel' ? s.options[0][0] : ''; } return o; }
+function blank(itemSchema) { const o = {}; for (const k in itemSchema) { const s = itemSchema[k]; o[k] = s.t === 'num' ? null : s.t === 'bool' ? false : s.t === 'strs' || s.t === 'list' || s.t === 'imgs' || s.t === 'tags' || s.t === 'badges' ? [] : s.t === 'obj' ? blank(s.fields) : s.t === 'sel' ? s.options[0][0] : ''; } return o; }
+
+/* ---------- плашки товара ---------- */
+const BADGE_TYPES = [['sale', 'Акция — красная'], ['hit', 'Хит — оранжевая'], ['new', 'Новинка — зелёная'], ['hot', 'Премиум — тёмная с золотом'], ['live', 'С зелёной точкой'], ['f', 'Золотая'], ['l', 'Светлая'], ['dark', 'Тёмная'], ['custom', 'Свой цвет']];
+const BADGE_PRESETS = [['sale', 'Акция'], ['sale', 'Скидка'], ['hit', 'Хит продаж'], ['new', 'Новинка'], ['live', 'В нашей студии'], ['hot', 'Премиум'], ['f', 'Ростест'], ['dark', 'Последний в наличии'], ['l', 'Под заказ']];
+const textOn = hex => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return '#fff'; const n = parseInt(m[1], 16); return ((n >> 16) * 299 + (n >> 8 & 255) * 587 + (n & 255) * 114) / 1000 > 150 ? '#0B1F18' : '#fff'; };
+function badgesField(f, path) {
+  if (!Array.isArray(getP(C, path))) setP(C, path, []);
+  const box = el('div');
+  const paint = (pv, b) => { pv.className = 'bdg-pv ' + b.type; pv.textContent = b.text || '—'; pv.style.background = b.type === 'custom' && b.color ? b.color : ''; pv.style.color = b.type === 'custom' && b.color ? textOn(b.color) : ''; };
+  const draw = () => {
+    box.innerHTML = ''; const a = getP(C, path);
+    box.append(el('div', { class: 'bdg-pre' }, ...BADGE_PRESETS.map(([t, txt]) => el('button', { type: 'button', class: 'bdg-pv ' + t, title: 'Добавить плашку', onclick: () => { a.push({ type: t, text: txt }); changed(); draw(); } }, '+ ' + txt))));
+    a.forEach((b, i) => {
+      const pv = el('span', { class: 'bdg-pv' }); paint(pv, b);
+      const sel = el('select'); BADGE_TYPES.forEach(([v, l]) => sel.append(el('option', { value: v, selected: v === b.type }, l)));
+      if (!BADGE_TYPES.some(t => t[0] === b.type)) sel.value = 'l';
+      const txt = el('input', { type: 'text', value: b.text || '', placeholder: 'Текст плашки' });
+      const col = el('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : '#C9362B', title: 'Цвет (для «Свой цвет»)' }); col.disabled = b.type !== 'custom';
+      const upd = () => { b.type = sel.value; b.text = txt.value; if (b.type === 'custom') b.color = col.value; else delete b.color; col.disabled = b.type !== 'custom'; paint(pv, b); changed(); };
+      sel.addEventListener('change', upd); txt.addEventListener('input', upd); col.addEventListener('input', upd);
+      box.append(el('div', { class: 'bdg-row' }, pv, sel, txt, col,
+        el('button', { class: 'ib', type: 'button', title: 'Выше', onclick: () => { if (i) { [a[i - 1], a[i]] = [a[i], a[i - 1]]; changed(); draw(); } } }, '↑'),
+        el('button', { class: 'ib', type: 'button', title: 'Ниже', onclick: () => { if (i < a.length - 1) { [a[i + 1], a[i]] = [a[i], a[i + 1]]; changed(); draw(); } } }, '↓'),
+        el('button', { class: 'ib del', type: 'button', title: 'Удалить', onclick: () => { a.splice(i, 1); changed(); draw(); } }, '✕')));
+    });
+    if (!a.length) box.append(el('div', { class: 'hint' }, 'Плашек нет. Нажмите на готовую выше — её текст и цвет можно поменять.'));
+  };
+  draw(); return wrap(f, box, el('div', { class: 'hint' }, 'Плашка «Акция» (красная) тоже добавляет товар в фильтр «Акции». Значок «−N%» ставится сам, если заполнена старая цена.'));
+}
 function itemTitle(it, i) { if (typeof it !== 'object' || !it) return String(it); for (const k of ['title', 'label', 'name', 'q', 'caption', 'text', 'k', 'b', 'code', 'id', 'img']) if (it[k]) return String(it[k]).replace(/<[^>]+>/g, '').slice(0, 90); return 'Элемент ' + (i + 1); }
 function listField(f, path) {
   if (!Array.isArray(getP(C, path))) setP(C, path, []);
   const box = el('div', { class: 'lst' }), openSet = new Set();
+  if (findQ.length > 1) getP(C, path).forEach((it, i) => { if (plain(it).includes(findQ)) openSet.add(i); });
   const draw = () => {
     box.innerHTML = ''; const a = getP(C, path);
     a.forEach((it, i) => {
@@ -304,16 +421,58 @@ function imgField(f, path, v, upd) {
   const i = el('input', { type: 'text', value: v || '', placeholder: 'имя файла в assets/img' });
   const set = n => { i.value = n; th.style.backgroundImage = n ? `url("${imgUrl(n)}")` : ''; upd(n); };
   i.addEventListener('change', () => set(i.value.trim()));
-  return wrap(f, el('div', { class: 'imgf' }, th, i, el('button', { class: 'b sm', type: 'button', onclick: () => pick(set) }, 'Выбрать'), el('button', { class: 'ib del', type: 'button', title: 'Очистить', onclick: () => set('') }, '✕')));
+  const need = () => { if (!i.value) { toast('Сначала выберите фото'); return false; } return true; };
+  return wrap(f, el('div', { class: 'imgf' }, th, i, el('div', { class: 'acts2' },
+    el('button', { class: 'b sm', type: 'button', onclick: () => pick(set) }, 'Выбрать'),
+    el('button', { class: 'b sm', type: 'button', title: 'Обрезка, поворот, фильтры, яркость — сохранится новым файлом', onclick: async () => { if (!need()) return; const r = await editImage(i.value); if (r && !r.all) set(r.name); } }, '✎ Редактор'),
+    el('button', { class: 'b sm', type: 'button', title: 'Как фото вписывается в рамки на сайте (файл не меняется)', onclick: () => need() && frameImage(i.value) }, '⌖ Кадр'),
+    el('button', { class: 'ib del', type: 'button', title: 'Очистить', onclick: () => set('') }, '✕'))));
 }
 function imgsField(f, path) {
   if (!Array.isArray(getP(C, path))) setP(C, path, []);
   const box = el('div', { class: 'imgs' });
   const draw = () => { box.innerHTML = ''; const a = getP(C, path);
-    a.forEach((n, i) => box.append(el('div', { class: 'cell', title: n, style: `background-image:url("${imgUrl(n)}")` }, el('div', { class: 'ops' }, el('button', { class: 'ib', type: 'button', onclick: () => { if (i) { [a[i - 1], a[i]] = [a[i], a[i - 1]]; changed(); draw(); } } }, '←'), el('button', { class: 'ib del', type: 'button', onclick: () => { a.splice(i, 1); changed(); draw(); } }, '✕'), el('button', { class: 'ib', type: 'button', onclick: () => { if (i < a.length - 1) { [a[i + 1], a[i]] = [a[i], a[i + 1]]; changed(); draw(); } } }, '→')))));
+    a.forEach((n, i) => box.append(el('div', { class: 'cell', title: n, style: `background-image:url("${imgUrl(n)}")` }, el('div', { class: 'ops' },
+      el('button', { class: 'ib', type: 'button', title: 'Левее', onclick: () => { if (i) { [a[i - 1], a[i]] = [a[i], a[i - 1]]; changed(); draw(); } } }, '←'),
+      el('button', { class: 'ib', type: 'button', title: 'Редактор', onclick: async () => { const r = await editImage(n); if (r && !r.all) { a[i] = r.name; changed(); } draw(); } }, '✎'),
+      el('button', { class: 'ib', type: 'button', title: 'Кадр на сайте', onclick: () => frameImage(n) }, '⌖'),
+      el('button', { class: 'ib del', type: 'button', title: 'Убрать из галереи', onclick: () => { a.splice(i, 1); changed(); draw(); } }, '✕'),
+      el('button', { class: 'ib', type: 'button', title: 'Правее', onclick: () => { if (i < a.length - 1) { [a[i + 1], a[i]] = [a[i], a[i + 1]]; changed(); draw(); } } }, '→')))));
     box.append(el('button', { class: 'add', type: 'button', title: 'Добавить фото', onclick: () => pick(n => { a.push(n); changed(); draw(); }, true) }, '+'));
   };
-  draw(); return wrap(f, box, el('div', { class: 'hint' }, 'Первое фото — главное на странице товара. Стрелками меняйте порядок.'));
+  draw(); return wrap(f, box, el('div', { class: 'hint' }, 'Первое фото — главное на странице товара. Наведите на фото: стрелки — порядок, ✎ — редактор, ⌖ — кадр.'));
+}
+/* ---------- редактор и кадр ---------- */
+async function savePending(blob, base, ext) {
+  base = R.slugify(base) || 'img'; let name = base + '.' + ext, n = 2; const all = allImages();
+  while (all.includes(name)) name = `${base}-${n++}.${ext}`;
+  setPending('assets/img/' + name, await blobB64(blob), blob);
+  return name;
+}
+function replaceEverywhere(from, to) {
+  let n = 0;
+  const walk = o => { for (const k in o) { if (o === C && k === 'media') continue; const v = o[k]; if (v === from) { o[k] = to; n++; } else if (v && typeof v === 'object') walk(v); } };
+  walk(C); return n;
+}
+// открыть фото в редакторе; результат — новый файл (исходник остаётся в медиатеке)
+async function editImage(name, o = {}) {
+  if (!window.TEPhoto) return null;
+  const r = await TEPhoto.edit(imgUrl(name), { title: 'Редактор фото · ' + name, allowReplaceAll: true, replaceAllDefault: !!o.replaceAllDefault });
+  if (!r) return null;
+  const nn = await savePending(r.blob, name.replace(/\.[^.]+$/, '').replace(/-edit(-\d+)?$/, '') + '-edit', r.ext);
+  const m = (C.media || {})[name]; if (m && m.fit) { C.media[nn] = { fit: m.fit }; if (m.bg) C.media[nn].bg = m.bg; }
+  if (r.replaceAll) { const cnt = replaceEverywhere(name, nn); changed(); buildSide(); show(current); toast(`Сохранено как ${nn} и подставлено в ${cnt} мест(а) сайта`); return { name: nn, all: true }; }
+  changed(); buildSide(); toast(`Сохранено как ${nn} — уйдёт на GitHub при публикации`); return { name: nn, all: false };
+}
+// как фото вписывается в рамки на сайте (C.media[имя])
+async function frameImage(name) {
+  if (!window.TEPhoto) return;
+  C.media = C.media || {};
+  const r = await TEPhoto.frame(imgUrl(name), C.media[name] || (/^c_/.test(name) ? { fit: 'contain' } : null), { title: 'Кадр на сайте · ' + name });
+  if (r === null) return;
+  if (r === 'reset') delete C.media[name];
+  else { const m = { fit: r.fit }; if (r.fit !== 'contain') { m.x = r.x; m.y = r.y; } if (r.bg) m.bg = r.bg; C.media[name] = m; }
+  changed(); if (current === 'media') CUSTOM.media(clear()); toast(r === 'reset' ? 'Кадр сброшен' : 'Кадр сохранён — посмотрите в предпросмотре');
 }
 async function toWebp(file) {
   if (/svg|gif/.test(file.type)) return { blob: file, ext: file.type.includes('svg') ? 'svg' : 'gif' };
@@ -322,29 +481,34 @@ async function toWebp(file) {
   const blob = await new Promise(r => cv.toBlob(r, 'image/webp', .84)); return { blob, ext: 'webp' };
 }
 const blobB64 = blob => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
-async function upload(files) {
+async function upload(files, withEditor) {
   const names = [];
   for (const file of files) {
+    if (withEditor && window.TEPhoto && /^image\/(jpeg|png|webp|bmp|avif)/.test(file.type)) {
+      const r = await TEPhoto.edit(file, { title: 'Новое фото · ' + file.name, saveLabel: 'Сохранить и добавить' });
+      if (!r) continue;
+      names.push(await savePending(r.blob, file.name.replace(/\.[^.]+$/, ''), r.ext)); continue;
+    }
     const { blob, ext } = await toWebp(file);
-    let base = R.slugify(file.name.replace(/\.[^.]+$/, '')) || 'img', name = base + '.' + ext, n = 2; const all = allImages();
-    while (all.includes(name)) name = `${base}-${n++}.${ext}`;
-    pending['assets/img/' + name] = { b64: await blobB64(blob), url: URL.createObjectURL(blob), size: blob.size };
-    names.push(name);
+    names.push(await savePending(blob, file.name.replace(/\.[^.]+$/, ''), ext));
   }
-  changed(); buildSide(); toast(`Загружено: ${names.length}. Файлы уйдут на GitHub при публикации.`); return names;
+  changed(); buildSide(); if (names.length) toast(`Загружено: ${names.length}. Файлы уйдут на GitHub при публикации.`); return names;
 }
 let pickCb = null, pickMulti = false;
 function pick(cb, multi) { pickCb = cb; pickMulti = !!multi; $('#pkTitle').textContent = multi ? 'Добавить фото (можно несколько по очереди)' : 'Выбор изображения'; drawPicker(); $('#dlgPicker').showModal(); }
 function drawPicker() {
   const q = ($('#pkSearch').value || '').toLowerCase(), g = $('#pkGrid'); g.innerHTML = '';
-  allImages().filter(n => n.toLowerCase().includes(q)).forEach(n => g.append(el('div', { class: 'mc', onclick: () => { pickCb && pickCb(n); if (!pickMulti) $('#dlgPicker').close(); else toast('Добавлено: ' + n); } }, pending['assets/img/' + n] ? el('span', { class: 'tag' }, 'новое') : null, el('div', { class: 'im', style: `background-image:url("${imgUrl(n)}")` }), el('div', { class: 'nm' }, n))));
+  allImages().filter(n => n.toLowerCase().includes(q)).forEach(n => g.append(el('div', { class: 'mc', title: n, onclick: e => { if (e.target.closest('.ops')) return; pickCb && pickCb(n); if (!pickMulti) $('#dlgPicker').close(); else toast('Добавлено: ' + n); } },
+    pending['assets/img/' + n] ? el('span', { class: 'tag' }, 'новое') : null, el('div', { class: 'im', style: `background-image:url("${imgUrl(n)}")` }),
+    el('div', { class: 'ops' }, el('button', { class: 'ib', type: 'button', title: 'Редактор', onclick: async () => { const d = $('#dlgPicker'); d.close(); const r = await editImage(n); d.showModal(); drawPicker(); if (r) toast('Новое фото ' + r.name + ' — выберите его в списке'); } }, '✎'), el('button', { class: 'ib', type: 'button', title: 'Кадр на сайте', onclick: async () => { const d = $('#dlgPicker'); d.close(); await frameImage(n); d.showModal(); } }, '⌖')),
+    el('div', { class: 'nm' }, n))));
 }
 $('#pkSearch').addEventListener('input', drawPicker);
-$('#pkUpload').addEventListener('change', async e => { const names = await upload([...e.target.files]); e.target.value = ''; drawPicker(); if (names.length && pickCb) { if (pickMulti) names.forEach(n => pickCb(n)); else { pickCb(names[0]); $('#dlgPicker').close(); } } });
+$('#pkUpload').addEventListener('change', async e => { const files = [...e.target.files], d = $('#dlgPicker'), ed = $('#pkEdit').checked; e.target.value = ''; if (ed) d.close(); const names = await upload(files, ed); if (ed) d.showModal(); drawPicker(); if (names.length && pickCb) { if (pickMulti) names.forEach(n => pickCb(n)); else { pickCb(names[0]); d.close(); } } });
 function musicField(f, path, v, upd) {
   const i = el('input', { type: 'text', value: v || '' }); i.addEventListener('change', () => upd(i.value.trim()));
   const up = el('input', { type: 'file', accept: 'audio/mpeg,audio/mp3,.mp3', hidden: true });
-  up.addEventListener('change', async () => { const file = up.files[0]; if (!file) return; if (file.size > 40 * 1048576) { toast('Файл больше 40 МБ — сожмите mp3'); return; } const name = (R.slugify(file.name.replace(/\.[^.]+$/, '')) || 'music') + '.mp3'; pending['assets/music/' + name] = { b64: await blobB64(file), url: URL.createObjectURL(file), size: file.size }; i.value = name; upd(name); toast('Трек загружен, уйдёт на GitHub при публикации'); });
+  up.addEventListener('change', async () => { const file = up.files[0]; if (!file) return; if (file.size > 40 * 1048576) { toast('Файл больше 40 МБ — сожмите mp3'); return; } const name = (R.slugify(file.name.replace(/\.[^.]+$/, '')) || 'music') + '.mp3'; setPending('assets/music/' + name, await blobB64(file), file); i.value = name; upd(name); toast('Трек загружен, уйдёт на GitHub при публикации'); });
   const audio = el('audio', { controls: true, preload: 'none', style: 'width:100%;margin-top:6px' }); const setSrc = () => { const p = 'assets/music/' + i.value; audio.src = pending[p] ? pending[p].url : '../assets/music/' + i.value; }; setSrc(); i.addEventListener('change', setSrc); up.addEventListener('change', () => setTimeout(setSrc, 300));
   return wrap(f, el('div', { class: 'imgf' }, i, el('label', { class: 'b sm' }, 'Загрузить mp3', up)), audio, el('div', { class: 'hint' }, 'Используйте музыку, на которую у вас есть права (стоки с лицензией, royalty-free). Коммерческие треки известных исполнителей могут привести к жалобам правообладателей и блокировке сайта.'));
 }
@@ -370,36 +534,63 @@ const CUSTOM = {
     const wrapEl = el('div', { class: 'prods' }), list = el('div', { class: 'plist', id: 'plist' }), form = el('div', { id: 'pform' });
     const search = el('input', { type: 'search', placeholder: 'Поиск товара' });
     const tools = el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px' },
-      el('button', { class: 'b sm gold', type: 'button', onclick: () => { const n = blank(PRODUCT); n.id = 'item-' + Date.now().toString(36); n.name = 'Новый аппарат'; n.slug = n.id; n.cat = ((C.catalog || {}).categories || [{}])[0].key || 'epil'; n.fit = 'cover'; n.availability = 'InStock'; P.push(n); curProduct = P.length - 1; changed(); buildSide(); CUSTOM.products(clear()); } }, '+ Новый товар'),
+      el('button', { class: 'b sm gold', type: 'button', onclick: () => { const n = blank(PRODUCT); n.id = 'item-' + Date.now().toString(36); n.name = 'Новый аппарат'; n.slug = n.id; n.cat = ((C.catalog || {}).categories || [{}])[0].key || 'epil'; n.availability = 'InStock'; P.push(n); curProduct = P.length - 1; changed(); buildSide(); CUSTOM.products(clear()); } }, '+ Новый товар'),
       el('button', { class: 'b sm', type: 'button', onclick: () => { const c = clone(P[curProduct]); c.id += '-copy'; c.slug += '-copy'; c.name += ' (копия)'; P.splice(curProduct + 1, 0, c); curProduct++; changed(); buildSide(); CUSTOM.products(clear()); } }, '⧉ Копия'),
       el('button', { class: 'b sm', type: 'button', onclick: () => { if (curProduct > 0) { [P[curProduct - 1], P[curProduct]] = [P[curProduct], P[curProduct - 1]]; curProduct--; changed(); CUSTOM.products(clear()); } } }, '↑'),
       el('button', { class: 'b sm', type: 'button', onclick: () => { if (curProduct < P.length - 1) { [P[curProduct + 1], P[curProduct]] = [P[curProduct], P[curProduct + 1]]; curProduct++; changed(); CUSTOM.products(clear()); } } }, '↓'),
       el('button', { class: 'b sm red', type: 'button', onclick: () => { if (P[curProduct] && confirm(`Удалить «${P[curProduct].name}»? Страница товара тоже будет удалена при публикации.`)) { P.splice(curProduct, 1); curProduct = Math.max(0, curProduct - 1); changed(); buildSide(); CUSTOM.products(clear()); } } }, '✕ Удалить'));
     const left = el('div', {}, tools, search, el('div', { style: 'height:8px' }), list);
     wrapEl.append(left, form); ed.append(wrapEl);
-    window.refreshPListImpl = () => { const q = search.value.toLowerCase(); list.innerHTML = ''; P.forEach((p, i) => { if (q && !(p.name + ' ' + p.kind + ' ' + p.id).toLowerCase().includes(q)) return; list.append(el('button', { type: 'button', class: 'pl' + (i === curProduct ? ' on' : '') + (p.hidden ? ' hid' : ''), onclick: () => { curProduct = i; CUSTOM.products(clear()); } }, el('img', { src: imgUrl(p.img), alt: '' }), el('span', {}, el('b', {}, p.name || '—'), el('small', {}, `${((C.catalog.categories || []).find(k => k.key === p.cat) || {}).label || p.cat} · ${p.price == null || p.price === '' ? 'по запросу' : Number(p.price).toLocaleString('ru-RU') + ' ₽'}${p.hidden ? ' · скрыт' : ''}`)))); }); };
+    window.refreshPListImpl = () => { const q = search.value.toLowerCase(); list.innerHTML = ''; P.forEach((p, i) => { if (q && !(p.name + ' ' + p.kind + ' ' + p.id).toLowerCase().includes(q)) return; list.append(el('button', { type: 'button', class: 'pl' + (i === curProduct ? ' on' : '') + (p.hidden ? ' hid' : ''), onclick: () => { curProduct = i; CUSTOM.products(clear()); } }, el('img', { src: imgUrl(p.img), alt: '' }), el('span', {}, el('b', {}, p.name || '—'), el('small', {}, `${((C.catalog.categories || []).find(k => k.key === p.cat) || {}).label || p.cat} · ${p.price == null || p.price === '' ? 'по запросу' : Number(p.price).toLocaleString('ru-RU') + ' ₽'}${+p.priceOld > +p.price || (p.badges || []).some(b => b.type === 'sale') ? ' · 🔥 акция' : ''}${p.hidden ? ' · скрыт' : ''}`)))); }); };
     search.addEventListener('input', refreshPListImpl); refreshPListImpl();
     if (P[curProduct]) { form.append(el('div', { class: 'banner' }, 'Страница товара: ', el('a', { href: '../apparaty/' + (P[curProduct].slug || '') + '/', target: '_blank' }, '/apparaty/' + (P[curProduct].slug || '') + '/'))); renderFields(form, PRODUCT, ['products', curProduct]); form.addEventListener('input', () => setTimeout(refreshPListImpl, 0)); }
     pvFollow('product');
   },
   media(ed) {
-    ed.append(el('div', { class: 'pk-bar' }, el('label', { class: 'b gold' }, '⬆ Загрузить изображения', (() => { const i = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true }); i.addEventListener('change', async () => { await upload([...i.files]); CUSTOM.media(clear()); }); return i; })())));
-    ed.append(el('p', { class: 'desc' }, 'Фото автоматически сжимаются в WebP (до 1800 px). Нажмите на файл, чтобы скопировать имя или пометить к удалению. Используемые на сайте файлы удалять нельзя.'));
-    const used = JSON.stringify(C); const g = el('div', { class: 'media' });
+    const editOn = el('input', { type: 'checkbox' }); editOn.checked = true;
+    const q = el('input', { type: 'search', placeholder: 'Поиск по имени файла' });
+    ed.append(el('div', { class: 'pk-bar' }, q, el('label', { class: 'b gold' }, '⬆ Загрузить изображения', (() => { const i = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true }); i.addEventListener('change', async () => { await upload([...i.files], editOn.checked); CUSTOM.media(clear()); }); return i; })())));
+    ed.append(el('div', { class: 'pk-opts', style: 'margin-bottom:12px' }, el('label', { class: 'chk' }, editOn, 'Открывать редактор при загрузке (обрезка, поворот, фильтры)')));
+    ed.append(el('p', { class: 'desc' }, 'Наведите на фото: ✎ — редактор (сохранит новый файл и может заменить фото везде на сайте), ⌖ — кадр на сайте (как фото вписывается в рамки), ⧉ — скопировать имя, 🗑 — удалить из репозитория (только неиспользуемые). Фото сжимаются в WebP.'));
+    const used = JSON.stringify(Object.assign({}, C, { media: null })); const g = el('div', { class: 'media' });
     const all = new Set([...allImages(), ...[...deleted].map(p => p.slice(11))]);
-    [...all].sort().forEach(n => { const p = 'assets/img/' + n, isDel = deleted.has(p), isUsed = used.includes('"' + n + '"');
-      g.append(el('div', { class: 'mc', title: n, onclick: () => { navigator.clipboard && navigator.clipboard.writeText(n); if (isUsed) { toast('Имя скопировано: ' + n + ' (файл используется)'); return; } if (pending[p]) { if (confirm('Убрать загруженный файл?')) { delete pending[p]; changed(); CUSTOM.media(clear()); } return; } if (repoImages.includes(n)) { if (isDel) deleted.delete(p); else if (confirm(`Удалить ${n} из репозитория при публикации?`)) deleted.add(p); changed(); CUSTOM.media(clear()); } } },
-        pending[p] ? el('span', { class: 'tag' }, 'новое') : isDel ? el('span', { class: 'tag del' }, 'удалить') : !isUsed ? el('span', { class: 'tag', style: 'background:#3C8A72;color:#fff' }, 'не используется') : null,
-        el('div', { class: 'im', style: `background-image:url("${imgUrl(n)}")` }), el('div', { class: 'nm' }, n))); });
-    ed.append(g);
+    const draw = () => { g.innerHTML = ''; const s = q.value.toLowerCase();
+      [...all].sort().filter(n => n.toLowerCase().includes(s)).forEach(n => { const p = 'assets/img/' + n, isDel = deleted.has(p), isUsed = used.includes('"' + n + '"'), fr = (C.media || {})[n];
+        const del = () => { if (isUsed) { toast('Файл используется на сайте — сначала замените его в полях'); return; } if (pending[p]) { if (confirm('Убрать загруженный файл?')) { dropPending(p); changed(); CUSTOM.media(clear()); } return; } if (repoImages.includes(n)) { if (isDel) deleted.delete(p); else if (confirm(`Удалить ${n} из репозитория при публикации?`)) deleted.add(p); changed(); CUSTOM.media(clear()); } else toast('Этого файла ещё нет в репозитории'); };
+        g.append(el('div', { class: 'mc', title: n, tabindex: 0 },
+          pending[p] ? el('span', { class: 'tag' }, 'новое') : isDel ? el('span', { class: 'tag del' }, 'удалить') : !isUsed ? el('span', { class: 'tag', style: 'background:#3C8A72;color:#fff' }, 'не используется') : null,
+          fr ? el('span', { class: 'fr-tag', title: 'Задан кадр на сайте' }, '⌖ ' + ({ cover: 'фокус', fit: 'целиком', contain: 'вырезан' }[fr.fit] || 'фокус')) : null,
+          el('div', { class: 'im', style: `background-image:url("${imgUrl(n)}")` }),
+          el('div', { class: 'ops' },
+            el('button', { class: 'ib', type: 'button', title: 'Редактор', onclick: async () => { await editImage(n, { replaceAllDefault: isUsed }); if (current === 'media') CUSTOM.media(clear()); } }, '✎'),
+            el('button', { class: 'ib', type: 'button', title: 'Кадр на сайте', onclick: () => frameImage(n) }, '⌖'),
+            el('button', { class: 'ib', type: 'button', title: 'Скопировать имя', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(n); toast('Имя скопировано: ' + n); } }, '⧉'),
+            el('button', { class: 'ib del', type: 'button', title: isDel ? 'Не удалять' : 'Удалить', onclick: del }, isDel ? '↺' : '🗑')),
+          el('div', { class: 'nm' }, n))); });
+    };
+    q.addEventListener('input', draw); draw(); ed.append(g);
+  },
+  ui(ed) {
+    const U = C.ui = C.ui && typeof C.ui === 'object' ? C.ui : {}, D = R.UI_DEF || {}, groups = {};
+    for (const k in D) (groups[D[k][0]] = groups[D[k][0]] || []).push(k);
+    const q = el('input', { type: 'search', placeholder: 'Найти подпись, например «Позвонить» или «404»' });
+    ed.append(el('div', { class: 'pk-bar' }, q, el('button', { class: 'b ghost', type: 'button', onclick: () => { if (confirm('Вернуть все подписи к тексту по умолчанию?')) { for (const k in U) delete U[k]; changed(); CUSTOM.ui(clear()); } } }, 'Сбросить все')));
+    const boxes = [];
+    for (const g in groups) {
+      const grid = el('div', { class: 'grid2' }), box = el('div', { class: 'grp ui-grid' }, el('h3', {}, g), grid);
+      groups[g].forEach(k => { const i = el('input', { type: 'text', placeholder: D[k][2] }); i.value = U[k] || ''; const w = el('div', { class: 'f' + (U[k] ? ' set' : '') }, el('label', {}, D[k][1]), i); w.dataset.s = (D[k][1] + ' ' + D[k][2] + ' ' + (U[k] || '')).toLowerCase();
+        i.addEventListener('input', () => { if (i.value) U[k] = i.value; else delete U[k]; w.classList.toggle('set', !!i.value); changed(); }); grid.append(w); });
+      boxes.push(box); ed.append(box);
+    }
+    q.addEventListener('input', () => { const s = q.value.toLowerCase(); boxes.forEach(b => { let any = false; b.querySelectorAll('.f').forEach(w => { const ok = !s || w.dataset.s.includes(s); w.hidden = !ok; any = any || ok; }); b.hidden = !any; }); });
   },
   io(ed) {
     ed.append(el('div', { class: 'grp' }, el('h3', {}, 'Резервная копия'), el('p', { class: 'desc' }, 'Скачайте content.json — это все тексты, товары и настройки сайта.'),
       el('button', { class: 'b gold', type: 'button', onclick: () => { const a = el('a', { href: URL.createObjectURL(new Blob([JSON.stringify(C, null, 1)], { type: 'application/json' })), download: 'content.json' }); a.click(); } }, '⬇ Скачать content.json'), el('div', { style: 'height:14px' })));
     const inp = el('input', { type: 'file', accept: 'application/json,.json', hidden: true });
-    inp.addEventListener('change', async () => { try { const j = JSON.parse(await inp.files[0].text()); if (!j.products || !j.site) throw new Error('это не content.json сайта'); if (!confirm('Заменить все данные загруженным файлом?')) return; C = j; changed(); buildSide(); toast('Данные загружены — проверьте и опубликуйте'); } catch (e) { alert('Ошибка: ' + e.message); } });
+    inp.addEventListener('change', async () => { try { const j = JSON.parse(await inp.files[0].text()); if (!j.products || !j.site) throw new Error('это не content.json сайта'); if (!confirm('Заменить все данные загруженным файлом?')) return; C = migrate(j); changed(); buildSide(); toast('Данные загружены — проверьте и опубликуйте'); } catch (e) { alert('Ошибка: ' + e.message); } });
     ed.append(el('div', { class: 'grp' }, el('h3', {}, 'Импорт'), el('p', { class: 'desc' }, 'Загрузите сохранённый ранее content.json.'), el('label', { class: 'b' }, '⬆ Загрузить content.json', inp), el('div', { style: 'height:14px' })));
-    ed.append(el('div', { class: 'grp' }, el('h3', {}, 'Сброс'), el('p', { class: 'desc' }, 'Отменить все изменения с момента загрузки/публикации.'), el('button', { class: 'b red', type: 'button', onclick: () => { if (confirm('Отменить все неопубликованные изменения?')) { C = clone(loaded); for (const k in pending) delete pending[k]; deleted.clear(); localStorage.removeItem(LS_DRAFT); changed(); buildSide(); toast('Изменения отменены'); } } }, 'Отменить изменения'), el('div', { style: 'height:14px' })));
+    ed.append(el('div', { class: 'grp' }, el('h3', {}, 'Сброс'), el('p', { class: 'desc' }, 'Отменить все изменения с момента загрузки/публикации.'), el('button', { class: 'b red', type: 'button', onclick: () => { if (confirm('Отменить все неопубликованные изменения?')) { C = clone(loaded); for (const k in pending) dropPending(k); FILES.clear(); deleted.clear(); localStorage.removeItem(LS_DRAFT); changed(); buildSide(); toast('Изменения отменены'); } } }, 'Отменить изменения'), el('div', { style: 'height:14px' })));
     ed.append(el('div', { class: 'grp' }, el('h3', {}, 'Скачать готовые страницы'), el('p', { class: 'desc' }, 'Без GitHub: собрать сайт и скачать главную страницу (для проверки).'), el('button', { class: 'b', type: 'button', onclick: () => { const f = R.renderAll(C); const a = el('a', { href: URL.createObjectURL(new Blob([f['index.html']], { type: 'text/html' })), download: 'index.html' }); a.click(); } }, '⬇ index.html'), el('div', { style: 'height:14px' })));
   },
   help(ed) {
@@ -409,6 +600,11 @@ const CUSTOM = {
 <li><b>Редактирование.</b> Слева — все блоки сайта. Любое поле сохраняется в черновик этого браузера автоматически. Справа — живой предпросмотр (кнопка «👁 Предпросмотр»).</li>
 <li><b>Публикация.</b> «🚀 Опубликовать» пересобирает ВСЕ страницы (главная, страницы товаров и категорий, sitemap.xml, robots.txt, llms.txt, data.js) и отправляет их одним коммитом. GitHub Pages обновит сайт примерно за 1–2 минуты.</li>
 <li><b>Фото.</b> Загружайте в «Медиатеке» или прямо в поле фото — они сжимаются в WebP и уходят на GitHub вместе с публикацией.</li>
+<li><b>✎ Редактор фото.</b> Кнопка у любого фото: обрезка с пропорциями (1:1, 4:5, 16:9…), поворот и наклон, отражение, 16 фильтров с регулировкой силы, яркость, контраст, тепло, света/тени, виньетка, зерно, резкость. Удерживайте «◐ До / после», чтобы сравнить. Результат сохраняется <i>новым файлом</i> — исходник не пропадает; галочка «Заменить везде» подставит новое фото во все места сайта.</li>
+<li><b>⌖ Кадр на сайте.</b> Не меняет файл, а задаёт, как фото вписывается в рамки: «Заполнить рамку» (с точкой фокуса — что всегда остаётся в кадре), «Целиком, без обрезки» (с заливкой полей) или «Как вырезанный аппарат». Справа видно, как фото будет выглядеть в карточке, широкой и вертикальной рамке.</li>
+<li><b>Акции.</b> У товара укажите «Старую цену» — на сайте она зачеркнётся, появится значок «−N%» и фильтр «Акции» в каталоге. «Акция до» — дата, после которой скидка скроется сама. Плашки «Акция», «Хит продаж», «Новинка», «Премиум» или любой текст своим цветом — в поле «Плашки на фото».</li>
+<li><b>Подписи и кнопки.</b> Все мелкие тексты сайта (кнопки, поля формы, калькулятор, сообщения, страница 404) — в одноимённом разделе.</li>
+<li><b>Поиск и отмена.</b> Строка поиска слева находит любой текст на сайте и открывает нужное поле. ↶ / ↷ вверху (или Ctrl+Z / Ctrl+Shift+Z вне полей ввода) — отменить и вернуть изменения. Ctrl+S — опубликовать.</li>
 <li><b>Товары.</b> У каждого товара своя SEO-страница <code>/apparaty/адрес/</code>. Адрес меняйте осторожно: старая страница удалится, а новая получит другой URL.</li>
 <li><b>SEO.</b> Обязательно укажите настоящий адрес сайта в разделе «Сайт» и коды Вебмастеров в «Аналитике». Подробный план продвижения — в README.md репозитория.</li>
 <li><b>Если что-то сломалось.</b> «Экспорт / импорт» → скачайте резервную копию; в GitHub любой коммит можно откатить (History → Revert).</li>
@@ -505,7 +701,7 @@ $('#btnDoPublish').addEventListener('click', async () => {
     const nt = await gh('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: commit.tree.sha, tree: entries }) });
     const nc = await gh('/git/commits', { method: 'POST', body: JSON.stringify({ message: $('#pubMsg').value || 'Обновление сайта', tree: nt.sha, parents: [baseSha] }) });
     await gh('/git/refs/heads/' + encodeURIComponent(cfg.branch), { method: 'PATCH', body: JSON.stringify({ sha: nc.sha, force: false }) });
-    C.meta = c.meta; loaded = clone(C); for (const k in pending) { if (k.startsWith('assets/img/')) repoImages.push(k.slice(11)); delete pending[k]; } deleted.forEach(p => { repoImages = repoImages.filter(n => 'assets/img/' + n !== p); }); deleted.clear();
+    C.meta = c.meta; loaded = clone(C); for (const k in pending) { if (k.startsWith('assets/img/')) repoImages.push(k.slice(11)); dropPending(k); } FILES.clear(); deleted.forEach(p => { repoImages = repoImages.filter(n => 'assets/img/' + n !== p); }); deleted.clear();
     try { const j = await gh('/contents/' + pre('content.json') + '?ref=' + encodeURIComponent(cfg.branch)); remoteSha = j.sha; } catch (e) {}
     localStorage.removeItem(LS_DRAFT); updateDirty(); buildSide();
     log('✅ Готово! Коммит ' + nc.sha.slice(0, 7) + '. GitHub Pages обновит сайт через 1–2 минуты.', 'ok');

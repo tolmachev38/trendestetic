@@ -8,7 +8,7 @@
   else root.TERender = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-  const VERSION = '4.0';
+  const VERSION = '4.1';
 
   /* ---------------- helpers ---------------- */
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -16,7 +16,132 @@
   const nbsp = '\u00a0';
   const fmt = n => { const s = String(Math.round(+n)); return s.replace(/\B(?=(\d{3})+(?!\d))/g, nbsp); };
   const isNum = v => v !== null && v !== undefined && v !== '' && !isNaN(+v);
-  const rub = n => isNum(n) ? fmt(n) + nbsp + '₽' : 'По запросу';
+
+  /* ---------------- подписи интерфейса (редактируются в админке: «Подписи и кнопки») ---------------- */
+  const UI_DEF = {
+    tagline: ['Общее', 'Кто вы — одной фразой (заголовки, разметка, llms.txt)', 'оборудование для салонов красоты'],
+    priceRequest: ['Общее', 'Цена, если она не указана', 'По запросу'],
+    getOffer: ['Общее', 'Кнопка «Получить предложение»', 'Получить предложение'],
+    call: ['Общее', 'Кнопка «Позвонить»', 'Позвонить'],
+    cursorOpen: ['Общее', 'Подпись курсора над карточкой товара', 'Открыть'],
+    cursorView: ['Общее', 'Подпись курсора над фото', 'Смотреть'],
+    menuOpen: ['Общее', 'Кнопка меню — «открыть» (для экранных дикторов)', 'Открыть меню'],
+    menuClose: ['Общее', 'Кнопка меню — «закрыть»', 'Закрыть меню'],
+    musicOn: ['Общее', 'Музыка — подсказка «включить»', 'Включить музыку'],
+    musicOff: ['Общее', 'Музыка — подсказка «выключить»', 'Выключить музыку'],
+    musicHint: ['Общее', 'Музыка — всплывающая подсказка до первого клика', 'Нажмите, чтобы включить музыку'],
+    skip: ['Общее', 'Скрытая ссылка «к содержимому» (доступность)', 'К основному содержанию'],
+    footCatalog: ['Подвал', 'Заголовок колонки каталога', 'Каталог'],
+    footCompany: ['Подвал', 'Заголовок колонки «Компания»', 'Компания'],
+    footContacts: ['Подвал', 'Заголовок колонки контактов', 'Контакты'],
+    footInn: ['Подвал', 'Подпись ИНН', 'ИНН'],
+    footOgrn: ['Подвал', 'Подпись ОГРНИП', 'ОГРНИП'],
+    catAll: ['Каталог', 'Фильтр «Все»', 'Все'],
+    catSale: ['Каталог', 'Фильтр «Акции» (появляется, если есть товары со скидкой или значком «Акция»)', 'Акции'],
+    sortLabel: ['Каталог', 'Сортировка — подпись', 'Сортировка'],
+    sortDef: ['Каталог', 'Сортировка — по умолчанию', 'По умолчанию'],
+    sortAsc: ['Каталог', 'Сортировка — дешевле', 'Сначала дешевле'],
+    sortDesc: ['Каталог', 'Сортировка — дороже', 'Сначала дороже'],
+    catLinks: ['Каталог', 'Строка со ссылками на разделы', 'Разделы каталога:'],
+    heroPrice: ['Каталог', 'Подпись цены в карточке на первом экране', 'цена'],
+    discount: ['Каталог', 'Значок скидки ({pct} — процент)', '−{pct}%'],
+    saleUntil: ['Каталог', 'Срок акции ({date} — дата)', 'Акция до {date}'],
+    pmPage: ['Карточка и страница товара', 'Ссылка из окна товара на его страницу', 'Страница аппарата: фото, описание, характеристики'],
+    featsTitle: ['Карточка и страница товара', 'Заголовок «Особенности»', 'Особенности и преимущества'],
+    specsTitle: ['Карточка и страница товара', 'Заголовок «Характеристики»', 'Технические характеристики'],
+    specsEmpty: ['Карточка и страница товара', 'Текст, если характеристик нет', 'Характеристики и цену уточняйте у менеджера — пришлём полное описание модели.'],
+    photo: ['Карточка и страница товара', 'Слово «Фото» (подписи к фото галереи)', 'Фото'],
+    crumbHome: ['Карточка и страница товара', 'Хлебные крошки — главная', 'Главная'],
+    crumbCatalog: ['Карточка и страница товара', 'Хлебные крошки — каталог', 'Каталог'],
+    howBuy: ['Карточка и страница товара', 'Заголовок «Как купить …»', 'Как купить'],
+    relatedTitle: ['Карточка и страница товара', 'Похожие — заголовок', 'Похожие'],
+    relatedAccent: ['Карточка и страница товара', 'Похожие — акцент', 'аппараты'],
+    allInCat: ['Карточка и страница товара', 'Ссылка «Все … →»', 'Все'],
+    allCatalog: ['Карточка и страница товара', 'Ссылка на весь каталог', 'Весь каталог'],
+    buyIn: ['Страница категории', 'Хвост заголовка («— купить в Иркутске»)', 'купить в'],
+    catEyebrow: ['Страница категории', 'Надзаголовок', 'Каталог'],
+    otherCats: ['Страница категории', 'Строка «Другие разделы»', 'Другие разделы:'],
+    techStep: ['Технология', 'Слово «Шаг»', 'ШАГ'],
+    techHot: ['Технология', 'Датчик — фолликул', 'Фолликул'],
+    techCold: ['Технология', 'Датчик — кожа', 'Кожа'],
+    svcK: ['Студия', 'Подпись над услугой', 'Услуга студии'],
+    roiDevice: ['Калькулятор окупаемости', 'Поле «Аппарат»', 'Аппарат'],
+    roiCheck: ['Калькулятор окупаемости', 'Поле «Средний чек»', 'Средний чек процедуры'],
+    roiPer: ['Калькулятор окупаемости', 'Поле «Клиентов в день»', 'Клиентов в день'],
+    roiDays: ['Калькулятор окупаемости', 'Поле «Рабочих дней»', 'Рабочих дней в месяц'],
+    roiCost: ['Калькулятор окупаемости', 'Поле «Расходы»', 'Расходы в месяц'],
+    roiPay: ['Калькулятор окупаемости', 'Итог — окупаемость', 'Окупаемость'],
+    roiRev: ['Калькулятор окупаемости', 'Итог — выручка', 'Выручка в месяц'],
+    roiProf: ['Калькулятор окупаемости', 'Итог — прибыль', 'Прибыль в месяц'],
+    roiYear: ['Калькулятор окупаемости', 'Итог — первый год', 'Итог 1-го года с учётом аппарата'],
+    roiNever: ['Калькулятор окупаемости', 'Если не окупается', 'Не окупится'],
+    roiNeverText: ['Калькулятор окупаемости', 'Пояснение, если не окупается', 'При таких вводных расходы выше выручки — увеличьте чек или число клиентов.'],
+    cPhone: ['Контакты', 'Подпись телефона', 'Телефон'],
+    cPhone2: ['Контакты', 'Подпись второго номера', 'Второй номер'],
+    cAddr: ['Контакты', 'Подпись адреса', 'Адрес'],
+    cHours: ['Контакты', 'Подпись часов работы', 'Часы работы'],
+    cAllLinks: ['Контакты', 'Кнопка «Все ссылки»', 'Все ссылки'],
+    cYandex: ['Контакты', 'Кнопка Яндекс Карт', 'Яндекс Карты'],
+    c2gis: ['Контакты', 'Кнопка 2ГИС', '2ГИС'],
+    fCompany: ['О компании — факты', 'Строка «Компания»', 'Компания'],
+    fCity: ['О компании — факты', 'Строка «Город»', 'Город'],
+    fArea: ['О компании — факты', 'Строка «Регион работы»', 'Регион работы'],
+    fSince: ['О компании — факты', 'Строка «Работаем с»', 'Работаем с'],
+    fSinceText: ['О компании — факты', 'Значение ({year} — год основания)', '{year} года'],
+    fRange: ['О компании — факты', 'Строка «Ассортимент»', 'Ассортимент'],
+    fPrices: ['О компании — факты', 'Строка «Цены»', 'Цены'],
+    fTerms: ['О компании — факты', 'Строка «Условия»', 'Условия'],
+    fTermsText: ['О компании — факты', 'Условия (текст, также в llms.txt)', 'бесплатная доставка, рассрочка, социальный контракт, обучение, гарантия, Ростест'],
+    fShow: ['О компании — факты', 'Строка «Шоурум»', 'Шоурум'],
+    fShowText: ['О компании — факты', 'Шоурум — текст после названия студии', 'оборудование в работе'],
+    fPhone: ['О компании — факты', 'Строка «Телефон»', 'Телефон'],
+    fHours: ['О компании — факты', 'Строка «Часы»', 'Часы'],
+    payments: ['О компании — факты', 'Способы оплаты (для разметки Schema.org)', 'Наличные, безналичный расчёт, рассрочка, социальный контракт'],
+    formName: ['Форма заявки', 'Поле «Имя»', 'Ваше имя'],
+    formPhone: ['Форма заявки', 'Поле «Телефон»', 'Телефон *'],
+    formWant: ['Форма заявки', 'Группа «Что интересует»', 'Что интересует'],
+    formPay: ['Форма заявки', 'Группа «Оплата»', 'Как планируете оплату'],
+    formMsg: ['Форма заявки', 'Поле «Сообщение»', 'Модель или вопрос'],
+    errPhone: ['Форма заявки', 'Ошибка — короткий телефон', 'Укажите телефон полностью'],
+    errConsent: ['Форма заявки', 'Ошибка — нет согласия', 'Нужно согласие на обработку данных'],
+    okSent: ['Форма заявки', 'Сообщение — заявка отправлена', 'Заявка отправлена — скоро свяжемся'],
+    okCopied: ['Форма заявки', 'Сообщение — текст скопирован для Telegram', 'Текст заявки скопирован — отправьте его в Telegram'],
+    qzReady: ['Подбор (квиз)', 'Надпись над результатом', 'Подбор готов'],
+    qzAgain: ['Подбор (квиз)', 'Кнопка «Пройти заново»', 'Пройти заново'],
+    qzPrefix: ['Подбор (квиз)', 'Начало текста заявки из подбора', 'Подбор: '],
+    qzStep: ['Подбор (квиз)', 'Счётчик вопросов ({n} — номер, {total} — всего)', 'Вопрос {n} из {total}'],
+    qzBack: ['Подбор (квиз)', 'Кнопка «Назад»', '← Назад'],
+    nfEyebrow: ['Страница 404', 'Надзаголовок', 'Ошибка 404'],
+    nfTitle: ['Страница 404', 'Заголовок', 'Страница не найдена —'],
+    nfAccent: ['Страница 404', 'Акцент заголовка', 'но аппарат найдём'],
+    nfText: ['Страница 404', 'Текст', 'Возможно, страница переехала. Загляните в каталог или позвоните — подскажем.'],
+    nfHome: ['Страница 404', 'Кнопка на главную', 'На главную'],
+    nfCatalog: ['Страница 404', 'Кнопка в каталог', 'Каталог'],
+  };
+  let UI = {}, MEDIA = {};
+  const u = (k, vars) => { let v = UI[k]; if (v == null || v === '') v = UI_DEF[k] ? UI_DEF[k][2] : k; if (vars) for (const n in vars) v = String(v).split('{' + n + '}').join(vars[n]); return v; };
+  const ue = (k, vars) => esc(u(k, vars));
+  const rub = n => isNum(n) ? fmt(n) + nbsp + '₽' : u('priceRequest');
+
+  /* ---------------- кадр фото (админка: «Кадр на сайте») ---------------- */
+  // fit: cover — заполнить с фокусом, contain — вырезанный аппарат на фоне, fit — целиком без обрезки
+  const frameOf = (f, fallbackFit, fallbackPos) => {
+    const m = (f && MEDIA[f]) || {};
+    const fit = m.fit || fallbackFit || (/^c_/.test(f || '') ? 'contain' : 'cover');
+    const pos = m.x != null || m.y != null ? `${m.x == null ? 50 : +m.x}% ${m.y == null ? 50 : +m.y}%` : (fallbackPos || '');
+    return { fit, pos, bg: m.bg || '' };
+  };
+  // style для <img>: обычные картинки
+  const IS = (f) => { const r = frameOf(f); let s = ''; if (r.fit === 'fit' || r.fit === 'contain') s += 'object-fit:contain;'; if (r.pos) s += `object-position:${r.pos};`; if (r.bg && r.fit !== 'cover') s += `background:${r.bg};`; return s ? ` style="${esc(s)}"` : ''; };
+  // для карточек/галерей товара: класс сцены + style
+  const PF = (f, p) => { const r = frameOf(f, f === (p && p.img) ? p.fit : null, f === (p && p.img) ? p.pos : null); let s = ''; if (r.fit === 'fit') s += 'object-fit:contain;'; if (r.pos && r.fit !== 'contain') s += `object-position:${r.pos};`; if (r.bg && r.fit === 'fit') s += `background:${r.bg};`; return { cls: r.fit === 'contain' ? 'contain' : 'cover', st: s ? ` style="${esc(s)}"` : '' }; };
+
+  /* ---------------- акции ---------------- */
+  const onSale = p => (isNum(p.priceOld) && isNum(p.price) && +p.priceOld > +p.price) || arr(p.badges).some(b => b.type === 'sale');
+  const pct = p => isNum(p.priceOld) && isNum(p.price) && +p.priceOld > +p.price ? Math.round((1 - p.price / p.priceOld) * 100) : 0;
+  const until = p => p.saleUntil ? ` data-until="${esc(p.saleUntil)}"` : '';
+  const ddmm = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); return m ? `${m[3]}.${m[2]}` : esc(d); };
+  const oldPrice = p => pct(p) ? `<s class="price-old"${until(p)}>${rub(p.priceOld)}</s>` : '';
   const plural = (n, a, b, c) => { n = Math.abs(n) % 100; const d = n % 10; if (n > 10 && n < 20) return c; if (d > 1 && d < 5) return b; if (d === 1) return a; return c; };
   const pad = n => String(n).padStart(2, '0');
   const arr = v => Array.isArray(v) ? v : [];
@@ -138,7 +263,7 @@ ${c.site && c.site.customHead || ''}
     const word = String(it.word || '').split('').map((ch, i) => ch === ' ' ? '<span>&nbsp;</span>' : `<span style="--i:${i}">${esc(ch)}</span>`).join('');
     return `<body class="no-js">
 <script>document.body.classList.remove('no-js');document.body.classList.add('js')</script>
-<a class="skip" href="#main">К основному содержанию</a>
+<a class="skip" href="#main">${ue('skip')}</a>
 ${it.enabled !== false ? `<div class="intro" id="intro" aria-hidden="true"><div class="intro-in"><span class="intro-mark"></span><span class="intro-word">${word}</span><span class="intro-bar"><i></i></span><small>${esc(it.caption)}</small></div></div>` : ''}
 <div class="cur" id="cur" aria-hidden="true"><i class="cur-dot"></i><i class="cur-ring"><b id="curT"></b></i></div>
 <div class="progress" aria-hidden="true"></div>
@@ -157,7 +282,7 @@ ${SPRITE}
     <div class="hdr-cta">
       <a class="hdr-phone" href="${telHref(ph.tel)}">${esc(ph.display)}</a>
       <button class="btn btn-fire magnet" data-quiz type="button">${esc(hd.cta)}</button>
-      <button class="burger" id="burger" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="mnav"><i></i></button>
+      <button class="burger" id="burger" type="button" aria-label="${ue('menuOpen')}" aria-expanded="false" aria-controls="mnav"><i></i></button>
     </div>
   </div>
 </header>
@@ -182,19 +307,19 @@ ${SPRITE}
         <p>${esc(f.about)}</p>
       </div>
       <div>
-        <h4>Каталог</h4>
+        <h4>${ue('footCatalog')}</h4>
         <ul>
           ${x.cats.map(k => `<li><a href="${base}katalog/${esc(k.slug)}/">${esc(k.name || k.label)}</a></li>`).join('\n          ')}
         </ul>
       </div>
       <div>
-        <h4>Компания</h4>
+        <h4>${ue('footCompany')}</h4>
         <ul>
           ${arr(f.companyLinks).map(n => `<li><a href="${esc(link(n.href, base, home))}"${ext(n.href)}>${esc(n.label)}</a></li>`).join('\n          ')}
         </ul>
       </div>
       <div>
-        <h4>Контакты</h4>
+        <h4>${ue('footContacts')}</h4>
         <ul>
           <li><a href="${telHref(ph.tel)}">${esc(ph.display)}</a></li>
           ${ph2.display ? `<li><a href="${telHref(ph2.tel)}">${esc(ph2.display)}</a></li>` : ''}
@@ -207,7 +332,7 @@ ${SPRITE}
     </div>
     <div class="ftr-big" aria-hidden="true">${esc(f.bigWord)}</div>
     <div class="ftr-bot">
-      <div>© <span id="yr">${new Date().getFullYear()}</span> ${esc(c.site && c.site.name)} × ${esc(co.legalName)} · ${esc(ad.city)}<br><span class="req">${esc(co.legalForm)} · ИНН ${esc(co.inn)} · ОГРНИП ${esc(co.ogrnip)}</span></div>
+      <div>© <span id="yr">${new Date().getFullYear()}</span> ${esc(c.site && c.site.name)} × ${esc(co.legalName)} · ${esc(ad.city)}<br><span class="req">${esc(co.legalForm)} · ${ue('footInn')} ${esc(co.inn)} · ${ue('footOgrn')} ${esc(co.ogrnip)}</span></div>
       <div>${esc(f.disclaimer)}${l.instagram ? `<br>${esc(f.instagramNote)}` : ''}</div>
       <div>${c.site && c.site.creditText ? `<a href="${esc(c.site.creditUrl || '#')}" target="_blank" rel="noopener">${esc(c.site.creditText)}</a>` : ''}</div>
     </div>
@@ -215,7 +340,7 @@ ${SPRITE}
 </footer>
 
 <div class="dock" id="dock">
-  <a class="round" href="${telHref(ph.tel)}" aria-label="Позвонить">${ico('phone')}</a>
+  <a class="round" href="${telHref(ph.tel)}" aria-label="${ue('call')}">${ico('phone')}</a>
   ${l.telegram ? `<a class="round" href="${esc(l.telegram)}" target="_blank" rel="noopener" aria-label="Telegram">${ico('tg')}</a>` : ''}
   <button class="btn btn-fire" type="button" data-quiz>${esc(c.header && c.header.cta)}</button>
 </div>
@@ -233,12 +358,12 @@ ${musicBtn(c)}
       <div class="pm-price"><b id="pmP"></b><span id="pmPs"></span></div>
       <div class="pm-note">${arr(c.catalog && c.catalog.sheetNotes).map((t, i) => `<span>${ico(['truck', 'card', 'doc', 'grad', 'shield', 'cert'][i % 6])}${esc(t)}</span>`).join('')}</div>
       <p class="pm-lead" id="pmL"></p>
-      <a class="pm-page" id="pmPage" href="#">Страница аппарата: фото, описание, характеристики ${ico('arrow-ur')}</a>
+      <a class="pm-page" id="pmPage" href="#">${ue('pmPage')} ${ico('arrow-ur')}</a>
       <div id="pmF"></div>
       <div id="pmS"></div>
       <div class="pm-cta">
-        <button class="btn btn-fire" type="button" id="pmLead">Получить предложение ${ico('arrow')}</button>
-        <a class="btn btn-ghost pm-call" href="${telHref(ph.tel)}" aria-label="Позвонить">${ico('phone', 'ico')}<span>Позвонить</span></a>
+        <button class="btn btn-fire" type="button" id="pmLead">${ue('getOffer')} ${ico('arrow')}</button>
+        <a class="btn btn-ghost pm-call" href="${telHref(ph.tel)}" aria-label="${ue('call')}">${ico('phone', 'ico')}<span>${ue('call')}</span></a>
       </div>
     </div>
   </div>
@@ -268,17 +393,26 @@ ${c.site && c.site.customBodyEnd || ''}
   function musicBtn(c) {
     const m = c.music || {};
     if (!m.enabled || !m.file) return '';
-    return `<button class="snd" id="snd" type="button" aria-pressed="false" aria-label="Включить музыку" title="${esc(m.title || 'Музыка')}"><span class="snd-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span><svg class="snd-on"><use href="#i-sound"/></svg><svg class="snd-off"><use href="#i-mute"/></svg><span class="snd-t">${esc(m.title || '')}</span></button>`;
+    return `<button class="snd" id="snd" type="button" aria-pressed="false" aria-label="${ue('musicOn')}" data-hint="${ue('musicHint')}" title="${esc(m.title || u('musicOn'))}"><span class="snd-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span><svg class="snd-on"><use href="#i-sound"/></svg><svg class="snd-off"><use href="#i-mute"/></svg><span class="snd-t">${esc(m.title || '')}</span></button>`;
   }
 
   /* ---------------- cards ---------------- */
-  function badge(b) { const t = b.type === 'f' ? 'f' : b.type === 'live' ? 'live' : 'l'; return `<span class="badge ${t}">${t === 'live' ? '<i></i>' : ''}${esc(b.text)}</span>`; }
+  const BADGE_T = ['live', 'f', 'l', 'dark', 'sale', 'hit', 'new', 'hot', 'custom'];
+  const contrast = hex => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return '#fff'; const n = parseInt(m[1], 16), r = n >> 16, g = n >> 8 & 255, b = n & 255; return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#0B1F18' : '#fff'; };
+  function badge(b, attrs) {
+    const t = BADGE_T.indexOf(b.type) >= 0 ? b.type : 'l';
+    const st = t === 'custom' && b.color ? ` style="background:${esc(b.color)};color:${contrast(b.color)}"` : '';
+    return `<span class="badge ${t}"${st}${attrs || ''}>${t === 'live' ? '<i></i>' : ''}${esc(b.text)}</span>`;
+  }
+  // все плашки товара: автоматическая «скидка −N%» + свои
+  const badgesOf = (p, c) => (pct(p) && ((c && c.catalog) || {}).autoDiscount !== false ? badge({ type: 'sale', text: u('discount', { pct: pct(p) }) }, until(p)) : '') + arr(p.badges).map(b => badge(b)).join('');
+  let CUR = null;
   function card(p, x, base, i) {
-    const cat = x.catBy[p.cat] || {};
-    return `<a class="card" href="${base}apparaty/${esc(p.slug)}/" data-open="${esc(p.id)}" data-cat="${esc(p.cat)}" data-price="${isNum(p.price) ? +p.price : ''}" data-idx="${i}" data-cursor="Открыть">
-  <div class="stage ${p.fit === 'contain' ? 'contain' : 'cover'}"><img src="${IMG(base, p.img)}" alt="${esc(p.imgAlt || p.name + ' — ' + p.kind)}" loading="lazy" decoding="async"${p.pos ? ` style="object-position:${esc(p.pos)}"` : ''}><div class="badges">${arr(p.badges).map(badge).join('')}</div><span class="card-no">№${nbsp}${pad(i + 1)}</span></div>
+    const cat = x.catBy[p.cat] || {}, fr = PF(p.img, p);
+    return `<a class="card" href="${base}apparaty/${esc(p.slug)}/" data-open="${esc(p.id)}" data-cat="${esc(p.cat)}" data-price="${isNum(p.price) ? +p.price : ''}"${onSale(p) ? ' data-sale="1"' : ''} data-idx="${i}" data-cursor="${ue('cursorOpen')}">
+  <div class="stage ${fr.cls}"><img src="${IMG(base, p.img)}" alt="${esc(p.imgAlt || p.name + ' — ' + p.kind)}" loading="lazy" decoding="async"${fr.st}><div class="badges">${badgesOf(p, CUR)}</div><span class="card-no">№${nbsp}${pad(i + 1)}</span></div>
   <div class="card-b"><span class="card-k">${esc(cat.label || '')} · ${esc(p.kind)}</span><h3 class="card-n">${esc(p.name)}</h3><div class="card-c">${arr(p.chips).map(t => `<span>${esc(t)}</span>`).join('')}</div>
-  <div class="card-f"><span class="price${isNum(p.price) ? '' : ' q'}">${rub(p.price)}</span><span class="round" aria-hidden="true">${ico('arrow-ur')}</span></div></div></a>`;
+  <div class="card-f"><span class="price-w">${oldPrice(p)}<span class="price${isNum(p.price) ? '' : ' q'}">${rub(p.price)}</span></span><span class="round" aria-hidden="true">${ico('arrow-ur')}</span></div></div></a>`;
   }
 
   /* ---------------- home sections ---------------- */
@@ -305,16 +439,16 @@ ${c.site && c.site.customBodyEnd || ''}
       <div class="hv" id="hv">
         <div class="ring" aria-hidden="true"></div><div class="ring r2" aria-hidden="true"></div>
         <div class="hv-main">
-          <img id="heroImg" src="${IMG(b, h.image)}" alt="${esc(h.imageAlt)}" width="1000" height="1334" fetchpriority="high" decoding="async">
+          <img id="heroImg" src="${IMG(b, h.image)}" alt="${esc(h.imageAlt)}" width="1000" height="1334" fetchpriority="high" decoding="async"${IS(h.image)}>
           <div class="scan" aria-hidden="true"></div>
           ${h.chip ? `<span class="chip-glass c1"><i></i>${esc(h.chip)}</span>` : ''}
           ${arr(h.wavelengths).length ? `<div class="wl" aria-label="Длины волны лазера">${arr(h.wavelengths).map(w => `<span>${esc(w)}</span>`).join('')}</div>` : ''}
           ${p ? `<a class="hv-card" href="${b}apparaty/${esc(p.slug)}/" data-open="${esc(p.id)}">
             <div><small>${esc(h.cardLabel || p.kind)}</small><b>${esc(p.name)}</b></div>
-            <div class="pr"><small>цена</small>${rub(p.price)}</div>
+            <div class="pr"><small>${ue('heroPrice')}</small>${rub(p.price)}</div>
           </a>` : ''}
         </div>
-        ${h.subImage ? `<div class="hv-sub" aria-hidden="true"><img src="${IMG(b, h.subImage)}" alt="" loading="lazy" decoding="async"></div>` : ''}
+        ${h.subImage ? `<div class="hv-sub" aria-hidden="true"><img src="${IMG(b, h.subImage)}" alt="" loading="lazy" decoding="async"${IS(h.subImage)}></div>` : ''}
         <i class="cn" aria-hidden="true"></i>
         <div class="hv-spec" aria-hidden="true">${arr(h.spec).map(t => `<span>${esc(t)}</span>`).join('')}</div>
       </div>
@@ -363,7 +497,7 @@ ${c.site && c.site.customBodyEnd || ''}
       </ol>
     </div>
     <div class="route-proof">
-      ${arr(r.proof).map((p, i) => `<figure data-lb="proof" data-i="${i}" data-r style="--d:${i}"><img src="${IMG(b, p.img)}" alt="${esc(p.alt || p.caption)}" loading="lazy" decoding="async"><figcaption>${esc(p.caption)}</figcaption></figure>`).join('\n      ')}
+      ${arr(r.proof).map((p, i) => `<figure data-lb="proof" data-i="${i}" data-r style="--d:${i}"><img src="${IMG(b, p.img)}" alt="${esc(p.alt || p.caption)}" loading="lazy" decoding="async"${IS(p.img)}><figcaption>${esc(p.caption)}</figcaption></figure>`).join('\n      ')}
       <div class="doc" data-r style="--d:3">
         <span class="seal">${ico('cert', 'ico')}</span>
         <div><b>${esc(r.docTitle)}</b>
@@ -415,13 +549,13 @@ ${c.site && c.site.customBodyEnd || ''}
           <span class="sv-tag" id="svTag">${esc(st[0] && st[0].tag)}</span>
           ${TECH_SVG}
           <div class="hud" aria-live="polite">
-            <div class="hot"><small>Фолликул</small><b><span id="tF">${esc(st[0] && st[0].follicle)}</span>°C</b><i id="bF" style="--w:30%"></i></div>
-            <div class="cold"><small>Кожа</small><b><span id="tS">${esc(st[0] && st[0].skin)}</span>°C</b><i id="bS" style="--w:25%"></i></div>
+            <div class="hot"><small>${ue('techHot')}</small><b><span id="tF">${esc(st[0] && st[0].follicle)}</span>°C</b><i id="bF" style="--w:30%"></i></div>
+            <div class="cold"><small>${ue('techCold')}</small><b><span id="tS">${esc(st[0] && st[0].skin)}</span>°C</b><i id="bS" style="--w:25%"></i></div>
           </div>
         </div>
       </div>
       <div class="steps-t" id="steps">
-        ${st.map((s, i) => `<div class="st${i ? '' : ' on'}" data-s="${i + 1}"><span class="n">ШАГ ${pad(i + 1)}</span><h3>${esc(s.title)}</h3><p>${s.text}</p></div>`).join('\n        ')}
+        ${st.map((s, i) => `<div class="st${i ? '' : ' on'}" data-s="${i + 1}"><span class="n">${ue('techStep')} ${pad(i + 1)}</span><h3>${esc(s.title)}</h3><p>${s.text}</p></div>`).join('\n        ')}
       </div>
     </div>
 
@@ -453,11 +587,11 @@ ${c.site && c.site.customBodyEnd || ''}
         <h3 class="h3" data-r style="--d:1;margin-top:20px">${H(esc(t.resTitle), esc(t.resAccent), x)}</h3>
         <p class="lead" data-r style="--d:2;margin-top:18px">${tok(t.resLead, x)}</p>
         <div class="ba" data-r style="--d:2;margin-top:30px">
-          ${[t.before, t.after].filter(Boolean).map((o, i) => `<figure><img src="${IMG(b, o.img)}" alt="${esc(o.alt)}" loading="lazy" decoding="async"><figcaption class="badge ${i ? 'f' : 'l'}">${esc(o.label)}</figcaption></figure>`).join('')}
+          ${[t.before, t.after].filter(Boolean).map((o, i) => `<figure><img src="${IMG(b, o.img)}" alt="${esc(o.alt)}" loading="lazy" decoding="async"${IS(o.img)}><figcaption class="badge ${i ? 'f' : 'l'}">${esc(o.label)}</figcaption></figure>`).join('')}
         </div>
       </div>
       ${pr.length ? `<div class="prog" data-r style="--d:1">
-        <div class="prog-stage" id="progStage">${pr.map((p, i) => `<img src="${IMG(b, p.img)}" alt="${esc(p.label)}" loading="lazy" decoding="async"${i ? '' : ' class="on"'}>`).join('')}</div>
+        <div class="prog-stage" id="progStage">${pr.map((p, i) => `<img src="${IMG(b, p.img)}" alt="${esc(p.label)}" loading="lazy" decoding="async"${i ? '' : ' class="on"'}${IS(p.img)}>`).join('')}</div>
         <div class="prog-lbl"><b id="progLbl">${esc(pr[0].label)}</b><span id="progN">1 / ${pr.length}</span></div>
         <input class="rng" type="range" min="1" max="${pr.length}" step="1" value="1" id="progR" aria-label="Этап курса">
         <div class="dots" aria-hidden="true">${pr.map((p, i) => `<span>${i + 1}</span>`).join('')}</div>
@@ -475,16 +609,16 @@ ${c.site && c.site.customBodyEnd || ''}
     <div class="tidx" data-r><span class="tidx-k">${esc(k.techIndexTitle)}</span><div class="tidx-l">${arr(k.techIndex).map(t => `<span>${esc(t)}</span>`).join('')}</div></div>
     <div class="cat-wrap">
     <div class="cat-bar">
-      <div class="chips" role="group" aria-label="Категории" id="catChips"><button class="chip" type="button" data-cat="all" aria-pressed="true">Все<sup>${x.count}</sup></button>${x.cats.filter(q => counts[q.key]).map(q => `<button class="chip" type="button" data-cat="${esc(q.key)}" aria-pressed="false">${esc(q.label)}<sup>${counts[q.key]}</sup></button>`).join('')}</div>
-      <label class="sel"><span class="sr">Сортировка</span>
-        <select id="sort"><option value="def">По умолчанию</option><option value="asc">Сначала дешевле</option><option value="desc">Сначала дороже</option></select>
+      <div class="chips" role="group" aria-label="Категории" id="catChips"><button class="chip" type="button" data-cat="all" aria-pressed="true">${ue('catAll')}<sup>${x.count}</sup></button>${x.products.some(onSale) ? `<button class="chip chip-sale" type="button" data-cat="sale" aria-pressed="false">${ue('catSale')}<sup>${x.products.filter(onSale).length}</sup></button>` : ''}${x.cats.filter(q => counts[q.key]).map(q => `<button class="chip" type="button" data-cat="${esc(q.key)}" aria-pressed="false">${esc(q.label)}<sup>${counts[q.key]}</sup></button>`).join('')}</div>
+      <label class="sel"><span class="sr">${ue('sortLabel')}</span>
+        <select id="sort"><option value="def">${ue('sortDef')}</option><option value="asc">${ue('sortAsc')}</option><option value="desc">${ue('sortDesc')}</option></select>
       </label>
     </div>
     <div class="grid-p" id="grid">
 ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
     </div>
     </div>
-    <p class="cat-links">Разделы каталога: ${x.cats.filter(q => counts[q.key]).map(q => `<a href="${b}katalog/${esc(q.slug)}/">${esc(q.name || q.label)}</a>`).join(' · ')}</p>
+    <p class="cat-links">${ue('catLinks')} ${x.cats.filter(q => counts[q.key]).map(q => `<a href="${b}katalog/${esc(q.slug)}/">${esc(q.name || q.label)}</a>`).join(' · ')}</p>
     ${arr(cmp.rows).length ? `<div class="cmp" id="compare">
       <div class="sec-head split" style="margin-bottom:0">
         <div style="display:grid;gap:22px">
@@ -498,7 +632,7 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
         <table>
           <thead><tr>${arr(cmp.headers).map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
           <tbody id="cmpBody">
-          ${arr(cmp.rows).map(r => { const p = x.byId(r.id); if (!p) return ''; const pm = Math.max(...arr(cmp.rows).map(q => +q.powerVal || 0)) || 1, rm = Math.max(...arr(cmp.rows).map(q => +q.resVal || 0)) || 1; return `<tr data-open="${esc(p.id)}" data-href="${b}apparaty/${esc(p.slug)}/" tabindex="0" data-cursor="Открыть"><td><a href="${b}apparaty/${esc(p.slug)}/">${esc(p.name)}</a><small>${esc(r.note)}</small></td><td><div class="mb"><span>${esc(r.power)}</span><i style="--w:${(+r.powerVal || 0) / pm * 100}%"></i></div></td><td><div class="mb"><span>${esc(r.res)}</span><i style="--w:${(+r.resVal || 0) / rm * 100}%"></i></div></td><td class="mono">${esc(r.spot)}</td><td class="mono">${esc(r.screen)}</td><td class="mono">${esc(r.apower)}</td><td class="pr">${rub(p.price)}</td></tr>`; }).join('\n          ')}
+          ${arr(cmp.rows).map(r => { const p = x.byId(r.id); if (!p) return ''; const pm = Math.max(...arr(cmp.rows).map(q => +q.powerVal || 0)) || 1, rm = Math.max(...arr(cmp.rows).map(q => +q.resVal || 0)) || 1; return `<tr data-open="${esc(p.id)}" data-href="${b}apparaty/${esc(p.slug)}/" tabindex="0" data-cursor="${ue('cursorOpen')}"><td><a href="${b}apparaty/${esc(p.slug)}/">${esc(p.name)}</a><small>${esc(r.note)}</small></td><td><div class="mb"><span>${esc(r.power)}</span><i style="--w:${(+r.powerVal || 0) / pm * 100}%"></i></div></td><td><div class="mb"><span>${esc(r.res)}</span><i style="--w:${(+r.resVal || 0) / rm * 100}%"></i></div></td><td class="mono">${esc(r.spot)}</td><td class="mono">${esc(r.screen)}</td><td class="mono">${esc(r.apower)}</td><td class="pr">${rub(p.price)}</td></tr>`; }).join('\n          ')}
           </tbody>
           <tfoot><tr><td colspan="${arr(cmp.headers).length || 7}">${esc(cmp.footer)}</td></tr></tfoot>
         </table>
@@ -529,9 +663,9 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
     </div>
     <div class="svc">
       ${arr(s.services).map((v, i) => { const d = x.byId(v.device); return `<article class="svc-c" data-r style="--d:${i}">
-        <figure class="svc-ph"><img src="${IMG(b, v.img)}" alt="${esc(v.badge + ' — ' + v.title)}" loading="lazy" decoding="async"><span class="badge l">${esc(v.badge)}</span></figure>
+        <figure class="svc-ph"><img src="${IMG(b, v.img)}" alt="${esc(v.badge + ' — ' + v.title)}" loading="lazy" decoding="async"${IS(v.img)}><span class="badge l">${esc(v.badge)}</span></figure>
         <div class="svc-b">
-          <span class="svc-k">Услуга студии · ${pad(i + 1)}</span>
+          <span class="svc-k">${ue('svcK')} · ${pad(i + 1)}</span>
           <h3>${esc(v.title)}</h3>
           <p>${esc(v.text)}</p>
           <ul class="svc-p">${arr(v.rows).map(r => `<li><span>${esc(r.name)}</span><b>${esc(r.value)}</b></li>`).join('')}</ul>
@@ -554,7 +688,7 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
       </div>
     </div>
     <div class="rail" id="rail" data-r>
-      ${arr(s.rail).map((r, i) => `<figure data-lb="rail" data-i="${i}"><div class="ph"><img src="${IMG(b, r.img)}" alt="${esc(r.caption)}" draggable="false" loading="lazy" decoding="async"></div><figcaption><span>${pad(i + 1)}</span>${esc(r.caption)}</figcaption></figure>`).join('\n      ')}
+      ${arr(s.rail).map((r, i) => `<figure data-lb="rail" data-i="${i}"><div class="ph"><img src="${IMG(b, r.img)}" alt="${esc(r.caption)}" draggable="false" loading="lazy" decoding="async"${IS(r.img)}></div><figcaption><span>${pad(i + 1)}</span>${esc(r.caption)}</figcaption></figure>`).join('\n      ')}
     </div>
   </div>
 </section>`;
@@ -566,19 +700,19 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
     ${head2(r, 'ro-h', x)}
     <div class="roi">
       <div class="roi-in" data-r>
-        <div class="fld"><div class="fld-h"><label for="rDev">Аппарат</label></div><div class="sel"><select id="rDev"></select></div></div>
+        <div class="fld"><div class="fld-h"><label for="rDev">${ue('roiDevice')}</label></div><div class="sel"><select id="rDev"></select></div></div>
         <div class="fld">
-          <div class="fld-h"><label for="rCheck">Средний чек процедуры</label><output id="oCheck">${rub(r.check)}</output></div>
+          <div class="fld-h"><label for="rCheck">${ue('roiCheck')}</label><output id="oCheck">${rub(r.check)}</output></div>
           <input class="rng" type="range" id="rCheck" min="500" max="6000" step="100" value="${+r.check || 2000}">
           <div class="quick" id="quick" aria-label="Цены в студии"></div>
         </div>
-        <div class="fld"><div class="fld-h"><label for="rPer">Клиентов в день</label><output id="oPer">${+r.perDay || 4}</output></div><input class="rng" type="range" id="rPer" min="1" max="14" step="1" value="${+r.perDay || 4}"></div>
-        <div class="fld"><div class="fld-h"><label for="rDays">Рабочих дней в месяц</label><output id="oDays">${+r.days || 22}</output></div><input class="rng" type="range" id="rDays" min="8" max="30" step="1" value="${+r.days || 22}"></div>
-        <div class="fld"><div class="fld-h"><label for="rCost">Расходы в месяц</label><output id="oCost">${rub(r.costs)}</output></div><input class="rng" type="range" id="rCost" min="0" max="300000" step="5000" value="${+r.costs || 0}"><p class="hint">${esc(r.costsHint)}</p></div>
+        <div class="fld"><div class="fld-h"><label for="rPer">${ue('roiPer')}</label><output id="oPer">${+r.perDay || 4}</output></div><input class="rng" type="range" id="rPer" min="1" max="14" step="1" value="${+r.perDay || 4}"></div>
+        <div class="fld"><div class="fld-h"><label for="rDays">${ue('roiDays')}</label><output id="oDays">${+r.days || 22}</output></div><input class="rng" type="range" id="rDays" min="8" max="30" step="1" value="${+r.days || 22}"></div>
+        <div class="fld"><div class="fld-h"><label for="rCost">${ue('roiCost')}</label><output id="oCost">${rub(r.costs)}</output></div><input class="rng" type="range" id="rCost" min="0" max="300000" step="5000" value="${+r.costs || 0}"><p class="hint">${esc(r.costsHint)}</p></div>
       </div>
       <div class="roi-out" data-r style="--d:1" aria-live="polite">
-        <div class="roi-big"><small>Окупаемость</small><b id="oPay">—</b><span id="oPayS"></span></div>
-        <div class="kpis"><div><small>Выручка в месяц</small><b id="oRev">—</b></div><div><small>Прибыль в месяц</small><b id="oProf">—</b></div><div><small>Итог 1-го года с учётом аппарата</small><b id="oYear">—</b></div></div>
+        <div class="roi-big"><small>${ue('roiPay')}</small><b id="oPay">—</b><span id="oPayS"></span></div>
+        <div class="kpis"><div><small>${ue('roiRev')}</small><b id="oRev">—</b></div><div><small>${ue('roiProf')}</small><b id="oProf">—</b></div><div><small>${ue('roiYear')}</small><b id="oYear">—</b></div></div>
         <svg class="chart" id="chart" viewBox="0 0 600 240" role="img" aria-label="График накопленной прибыли за 12 месяцев"></svg>
         <p class="disc">${esc(r.disclaimer)}</p>
         <button class="btn btn-fire" type="button" data-lead-from-roi>${esc(r.btn)} ${ico('arrow')}</button>
@@ -593,7 +727,7 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
   <div class="wrap">
     ${head2(w, 'wh-h', x)}
     <div class="bento">
-      ${arr(w.tiles).map((t, i) => { const st = t.style === 'photo' && t.img ? 'photo' : t.style === 'fire' ? 'fire' : ''; return `<article class="tile ${st} ${cls[i] || ''}" data-r style="--d:${i % 3}">${st === 'photo' ? `<img src="${IMG(b, t.img)}" alt="${esc(t.alt || t.title)}" loading="lazy" decoding="async">` : ''}${t.big ? `<span class="big">${esc(t.big)}</span>` : t.icon ? `<span class="ic">${ico(t.icon)}</span>` : ''}<h3${t.big ? ' style="margin-top:12px"' : ''}>${esc(t.title)}</h3>${t.quizBtn ? `<div class="row"><p>${esc(t.text)}</p><button class="btn btn-fire btn-sm" type="button" data-quiz>${esc(t.quizBtn)} ${ico('arrow')}</button></div>` : `<p>${esc(t.text)}</p>`}</article>`; }).join('\n      ')}
+      ${arr(w.tiles).map((t, i) => { const st = t.style === 'photo' && t.img ? 'photo' : t.style === 'fire' ? 'fire' : ''; return `<article class="tile ${st} ${cls[i] || ''}" data-r style="--d:${i % 3}">${st === 'photo' ? `<img src="${IMG(b, t.img)}" alt="${esc(t.alt || t.title)}" loading="lazy" decoding="async"${IS(t.img)}>` : ''}${t.big ? `<span class="big">${esc(t.big)}</span>` : t.icon ? `<span class="ic">${ico(t.icon)}</span>` : ''}<h3${t.big ? ' style="margin-top:12px"' : ''}>${esc(t.title)}</h3>${t.quizBtn ? `<div class="row"><p>${esc(t.text)}</p><button class="btn btn-fire btn-sm" type="button" data-quiz>${esc(t.quizBtn)} ${ico('arrow')}</button></div>` : `<p>${esc(t.text)}</p>`}</article>`; }).join('\n      ')}
     </div>
   </div>
 </section>`;
@@ -604,8 +738,8 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
   <div class="wrap">
     <div class="fdr">
       <div class="fdr-ph" data-r>
-        <div class="m"><img src="${IMG(b, f.photo)}" alt="${esc(f.photoAlt)}" width="700" height="1029" loading="lazy" decoding="async"></div>
-        ${f.photo2 ? `<div class="s"><img src="${IMG(b, f.photo2)}" alt="${esc(f.photo2Alt)}" loading="lazy" decoding="async"></div>` : ''}
+        <div class="m"><img src="${IMG(b, f.photo)}" alt="${esc(f.photoAlt)}" width="700" height="1029" loading="lazy" decoding="async"${IS(f.photo)}></div>
+        ${f.photo2 ? `<div class="s"><img src="${IMG(b, f.photo2)}" alt="${esc(f.photo2Alt)}" loading="lazy" decoding="async"${IS(f.photo2)}></div>` : ''}
         <div class="stamp" aria-hidden="true"><svg viewBox="0 0 112 112"><defs><path id="circ" d="M56 56m-44 0a44 44 0 1 1 88 0a44 44 0 1 1-88 0"/></defs><text><textPath href="#circ">${esc(f.stamp)}</textPath></text></svg><i></i></div>
       </div>
       <div>
@@ -638,19 +772,19 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
     ${head2(s, 'sh-h', x)}
     <div class="show">
       <div class="mosaic" data-r>
-        ${arr(s.photos).map((p, i) => `<figure data-lb="show" data-i="${i}"><img src="${IMG(b, p.img)}" alt="${esc(p.alt || p.caption)}" loading="lazy" decoding="async"><figcaption class="badge l">${esc(p.caption)}</figcaption></figure>`).join('\n        ')}
+        ${arr(s.photos).map((p, i) => `<figure data-lb="show" data-i="${i}"><img src="${IMG(b, p.img)}" alt="${esc(p.alt || p.caption)}" loading="lazy" decoding="async"${IS(p.img)}><figcaption class="badge l">${esc(p.caption)}</figcaption></figure>`).join('\n        ')}
       </div>
       <address class="contact" data-r style="--d:1">
-        <a class="crow" href="${telHref(ph.tel)}"><span class="ic">${ico('phone')}</span><div><small>Телефон</small><b>${esc(ph.display)}</b><span>${esc(ph.note)}</span></div></a>
-        ${ph2.display ? `<a class="crow" href="${telHref(ph2.tel)}"><span class="ic">${ico('phone')}</span><div><small>Второй номер</small><b>${esc(ph2.display)}</b><span>${esc(ph2.note)}</span></div></a>` : ''}
-        <a class="crow" href="${esc(l.twogis || l.yandexMaps || '#')}" target="_blank" rel="noopener"><span class="ic">${ico('pin')}</span><div><small>Адрес</small><b>${esc(ad.city)}, ${esc(ad.street)}</b><span>${esc(ad.note)}</span></div></a>
-        <div class="crow"><span class="ic">${ico('clock')}</span><div><small>Часы работы</small><b>${esc(hr.text)}</b><span>${esc(hr.note)}</span></div></div>
+        <a class="crow" href="${telHref(ph.tel)}"><span class="ic">${ico('phone')}</span><div><small>${ue('cPhone')}</small><b>${esc(ph.display)}</b><span>${esc(ph.note)}</span></div></a>
+        ${ph2.display ? `<a class="crow" href="${telHref(ph2.tel)}"><span class="ic">${ico('phone')}</span><div><small>${ue('cPhone2')}</small><b>${esc(ph2.display)}</b><span>${esc(ph2.note)}</span></div></a>` : ''}
+        <a class="crow" href="${esc(l.twogis || l.yandexMaps || '#')}" target="_blank" rel="noopener"><span class="ic">${ico('pin')}</span><div><small>${ue('cAddr')}</small><b>${esc(ad.city)}, ${esc(ad.street)}</b><span>${esc(ad.note)}</span></div></a>
+        <div class="crow"><span class="ic">${ico('clock')}</span><div><small>${ue('cHours')}</small><b>${esc(hr.text)}</b><span>${esc(hr.note)}</span></div></div>
         <div class="links">
           ${l.telegram ? `<a class="btn btn-ink btn-sm" href="${esc(l.telegram)}" target="_blank" rel="noopener">${ico('tg', 'ico')}Telegram</a>` : ''}
           ${l.max ? `<a class="btn btn-ghost btn-sm" href="${esc(l.max)}" target="_blank" rel="noopener">${ico('chat', 'ico')}MAX</a>` : ''}
-          ${l.twogis ? `<a class="btn btn-ghost btn-sm" href="${esc(l.twogis)}" target="_blank" rel="noopener">2ГИС</a>` : ''}
-          ${l.yandexMaps ? `<a class="btn btn-ghost btn-sm" href="${esc(l.yandexMaps)}" target="_blank" rel="noopener">Яндекс Карты</a>` : ''}
-          ${l.allLinks ? `<a class="btn btn-ghost btn-sm" href="${esc(l.allLinks)}" target="_blank" rel="noopener">${ico('link', 'ico')}Все ссылки</a>` : ''}
+          ${l.twogis ? `<a class="btn btn-ghost btn-sm" href="${esc(l.twogis)}" target="_blank" rel="noopener">${ue('c2gis')}</a>` : ''}
+          ${l.yandexMaps ? `<a class="btn btn-ghost btn-sm" href="${esc(l.yandexMaps)}" target="_blank" rel="noopener">${ue('cYandex')}</a>` : ''}
+          ${l.allLinks ? `<a class="btn btn-ghost btn-sm" href="${esc(l.allLinks)}" target="_blank" rel="noopener">${ico('link', 'ico')}${ue('cAllLinks')}</a>` : ''}
         </div>
       </address>
     </div>
@@ -666,13 +800,14 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
   };
   S.about = (c, x) => {
     const a = c.about || {}, co = c.company || {}, ad = co.address || {};
+    const used = x.cats.filter(k => x.products.some(p => p.cat === k.key)).map(k => String(k.name || k.label || '').toLowerCase());
     const facts = [
-      ['Компания', `${c.site.name} — поставка оборудования для салонов красоты`], ['Город', `${ad.city}, ${ad.street}`], ['Регион работы', (c.seo && c.seo.serviceArea) || ''],
-      ['Работаем с', `${co.founded} года`], ['Ассортимент', `${x.count} ${x.countWord}: диодные лазеры, DPL/ELOS, коррекция фигуры, косметология лица, SPA-мебель`],
-      ['Цены', `от ${x.minPrice} до ${x.maxPrice}`], ['Условия', 'бесплатная доставка, рассрочка, социальный контракт, обучение, гарантия, Ростест'],
-      ['Шоурум', `${co.legalName}, ${ad.city} — оборудование в работе`],
-      ['Телефон', (co.phone || {}).display], ['Часы', (co.hours || {}).text],
-    ].filter(f => f[1]);
+      [u('fCompany'), `${c.site.name} — ${u('tagline')}`], [u('fCity'), `${ad.city}, ${ad.street}`], [u('fArea'), (c.seo && c.seo.serviceArea) || ''],
+      [u('fSince'), co.founded ? u('fSinceText', { year: co.founded }) : ''], [u('fRange'), `${x.count} ${x.countWord}${used.length ? ': ' + used.join(', ') : ''}`],
+      [u('fPrices'), x.min ? `${x.minPrice} – ${x.maxPrice}` : ''], [u('fTerms'), u('fTermsText')],
+      [u('fShow'), `${co.legalName}, ${ad.city} — ${u('fShowText')}`],
+      [u('fPhone'), (co.phone || {}).display], [u('fHours'), (co.hours || {}).text],
+    ].filter(f => f[0] && f[1]);
     return `<section class="sec light" id="about" aria-labelledby="ab-h">
   <div class="wrap about">
     <div>
@@ -719,12 +854,12 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
     </div>
     <form class="form" id="form" novalidate data-r style="--d:1">
       <div class="frow">
-        <div class="inp"><input id="fName" name="name" placeholder=" " autocomplete="name"><label for="fName">Ваше имя</label></div>
-        <div class="inp" id="fPhoneW"><input id="fPhone" name="phone" type="tel" placeholder=" " autocomplete="tel" inputmode="tel" required><label for="fPhone">Телефон *</label></div>
+        <div class="inp"><input id="fName" name="name" placeholder=" " autocomplete="name"><label for="fName">${ue('formName')}</label></div>
+        <div class="inp" id="fPhoneW"><input id="fPhone" name="phone" type="tel" placeholder=" " autocomplete="tel" inputmode="tel" required><label for="fPhone">${ue('formPhone')}</label></div>
       </div>
-      <div class="grp"><span>Что интересует</span><div class="opt">${arr(d.want).map((t, i) => `<label><input type="radio" name="want" value="${esc(t)}"${i ? '' : ' checked'}><span>${esc(t)}</span></label>`).join('')}</div></div>
-      <div class="grp"><span>Как планируете оплату</span><div class="opt">${arr(d.pay).map((t, i) => `<label><input type="radio" name="pay" value="${esc(t)}"${i ? '' : ' checked'}><span>${esc(t)}</span></label>`).join('')}</div></div>
-      <div class="inp"><textarea id="fMsg" name="msg" placeholder=" " rows="3"></textarea><label for="fMsg">Модель или вопрос</label></div>
+      <div class="grp"><span>${ue('formWant')}</span><div class="opt">${arr(d.want).map((t, i) => `<label><input type="radio" name="want" value="${esc(t)}"${i ? '' : ' checked'}><span>${esc(t)}</span></label>`).join('')}</div></div>
+      <div class="grp"><span>${ue('formPay')}</span><div class="opt">${arr(d.pay).map((t, i) => `<label><input type="radio" name="pay" value="${esc(t)}"${i ? '' : ' checked'}><span>${esc(t)}</span></label>`).join('')}</div></div>
+      <div class="inp"><textarea id="fMsg" name="msg" placeholder=" " rows="3"></textarea><label for="fMsg">${ue('formMsg')}</label></div>
       <label class="agree"><input type="checkbox" id="fAgree" checked required><span>${esc(d.consent)}</span></label>
       <button class="btn btn-fire" type="submit">${esc(d.submit)} ${ico('arrow')}</button>
       <div class="form-ok" role="status"><b>${esc(d.successTitle)}</b>${esc(d.successText)}</div>
@@ -739,7 +874,7 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
     const id = siteUrl(c) + '#org';
     return {
       '@context': 'https://schema.org', '@type': ['Store', 'LocalBusiness'], '@id': id,
-      name: c.site.name, alternateName: `${c.site.name} — оборудование для салонов красоты`,
+      name: c.site.name, alternateName: `${c.site.name} — ${u('tagline')}`,
       description: strip(tok(s.description, x)), url: siteUrl(c),
       logo: ABS(c, 'assets/icons/icon-512.png'), image: [ABS(c, 'assets/img/' + (s.ogImage || 'og-image.jpg')), ABS(c, 'assets/img/' + ((c.hero || {}).image || 'hero.webp'))],
       telephone: [(co.phone || {}).tel, (co.phone2 || {}).tel].filter(Boolean), email: co.email || undefined,
@@ -748,7 +883,7 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
       hasMap: l.twogis || l.yandexMaps || undefined,
       openingHoursSpecification: { '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], opens: (co.hours || {}).opens || '09:00', closes: (co.hours || {}).closes || '22:00' },
       areaServed: [...arr(s.areaServed).map(n => ({ '@type': 'City', name: n })), { '@type': 'AdministrativeArea', name: s.region || 'Иркутская область' }, { '@type': 'Country', name: 'Россия' }],
-      priceRange: `${x.minPrice} – ${x.maxPrice}`.replace(/\u00a0/g, ' '), currenciesAccepted: 'RUB', paymentAccepted: 'Наличные, безналичный расчёт, рассрочка, социальный контракт',
+      priceRange: `${x.minPrice} – ${x.maxPrice}`.replace(/\u00a0/g, ' '), currenciesAccepted: 'RUB', paymentAccepted: u('payments'),
       taxID: co.inn, foundingDate: co.founded, knowsLanguage: 'ru',
       founder: co.founder ? { '@type': 'Person', name: co.founder, jobTitle: co.founderTitle } : undefined,
       sameAs: [l.telegram, l.twogis, l.studioSite, l.allLinks].filter(Boolean),
@@ -766,7 +901,7 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
       description: strip(p.seoDescription || [p.lead, p.description].filter(Boolean).join(' ')),
       additionalProperty: arr(p.specs).slice(0, 20).map(s => ({ '@type': 'PropertyValue', name: s.name, value: s.value })),
     };
-    if (isNum(p.price)) o.offers = { '@type': 'Offer', url, price: +p.price, priceCurrency: 'RUB', availability: 'https://schema.org/' + (p.availability || 'InStock'), itemCondition: 'https://schema.org/NewCondition', seller: { '@id': siteUrl(c) + '#org' }, areaServed: { '@type': 'AdministrativeArea', name: (c.seo || {}).region || 'Иркутская область' } };
+    if (isNum(p.price)) o.offers = { '@type': 'Offer', url, price: +p.price, priceCurrency: 'RUB', availability: 'https://schema.org/' + (p.availability || 'InStock'), itemCondition: 'https://schema.org/NewCondition', priceValidUntil: onSale(p) && /^\d{4}-\d{2}-\d{2}/.test(p.saleUntil || '') ? p.saleUntil.slice(0, 10) : undefined, seller: { '@id': siteUrl(c) + '#org' }, areaServed: { '@type': 'AdministrativeArea', name: (c.seo || {}).region || 'Иркутская область' } };
     return o;
   }
   function faqLd(c, items, x) { if (!items.length) return null; return { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: items.map(q => ({ '@type': 'Question', name: strip(q.q), acceptedAnswer: { '@type': 'Answer', text: strip(tok(q.a, x)) } })) }; }
@@ -795,25 +930,26 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
     const title = p.seoTitle || `${p.name} — купить в ${city === 'Иркутск' ? 'Иркутске' : city}, цена ${strip(rub(p.price))} | ${c.site.name}`;
     const desc = p.seoDescription || cut(`${p.name} (${p.kind}): ${strip(p.lead)} Цена — ${strip(rub(p.price))}. Доставка, рассрочка, социальный контракт, обучение. Шоурум в Иркутске.`, 300);
     const related = x.products.filter(q => q.cat === p.cat && q.id !== p.id).slice(0, 4);
-    const ld = [productLd(c, x, p), breadcrumbs(c, [['Главная', ''], ['Каталог', '#catalog'], [k.name || k.label || 'Каталог', 'katalog/' + (k.slug || '') + '/'], [p.name, 'apparaty/' + p.slug + '/']])].map(clean);
+    const ld = [productLd(c, x, p), breadcrumbs(c, [[u('crumbHome'), ''], [u('crumbCatalog'), '#catalog'], [k.name || k.label || u('crumbCatalog'), 'katalog/' + (k.slug || '') + '/'], [p.name, 'apparaty/' + p.slug + '/']])].map(clean);
     const main = `<main id="main" class="page">
 <section class="sec light pp" aria-labelledby="pp-h">
   <div class="wrap">
-    ${crumbs([['Главная', b], ['Каталог', b + '#catalog'], [k.name || k.label || 'Каталог', b + 'katalog/' + (k.slug || '') + '/'], [p.name, '']])}
+    ${crumbs([[u('crumbHome'), b], [u('crumbCatalog'), b + '#catalog'], [k.name || k.label || u('crumbCatalog'), b + 'katalog/' + (k.slug || '') + '/'], [p.name, '']])}
     <div class="pp-grid">
       <div class="pp-gal">
-        <div class="pp-main ${p.fit === 'contain' ? 'contain' : 'cover'}" data-lb="product" data-i="0" data-cursor="Смотреть"><img id="ppImg" src="${IMG(b, gal[0])}" alt="${esc(p.imgAlt || p.name + ' — ' + p.kind)}" fetchpriority="high" decoding="async"${p.pos ? ` style="object-position:${esc(p.pos)}"` : ''}><div class="badges">${arr(p.badges).map(badge).join('')}</div></div>
-        ${gal.length > 1 ? `<div class="pp-th">${gal.map((g, i) => `<button type="button" class="${/^c_/.test(g) ? 'ct' : ''}" data-pp="${i}" aria-label="Фото ${i + 1}"${i ? '' : ' aria-current="true"'}><img src="${IMG(b, g)}" alt="${esc(p.name)} — фото ${i + 1}" loading="lazy" decoding="async"></button>`).join('')}</div>` : ''}
+        <div class="pp-main ${PF(gal[0], p).cls}" data-lb="product" data-i="0" data-cursor="${ue('cursorView')}"><img id="ppImg" src="${IMG(b, gal[0])}" alt="${esc(p.imgAlt || p.name + ' — ' + p.kind)}" fetchpriority="high" decoding="async"${PF(gal[0], p).st}><div class="badges">${badgesOf(p, c)}</div></div>
+        ${gal.length > 1 ? `<div class="pp-th">${gal.map((g, i) => `<button type="button" class="${PF(g, p).cls === 'contain' ? 'ct' : ''}" data-pp="${i}" aria-label="${ue('photo')} ${i + 1}"${i ? '' : ' aria-current="true"'}><img src="${IMG(b, g)}" alt="${esc(p.name)} — ${esc(u('photo').toLowerCase())} ${i + 1}" loading="lazy" decoding="async"${PF(g, p).st}></button>`).join('')}</div>` : ''}
       </div>
       <div class="pp-info">
         <span class="pm-k">${esc(k.label || '')} · ${esc(p.kind)}</span>
         <h1 class="pp-n" id="pp-h">${esc(p.name)}</h1>
-        <div class="pm-price"><b>${rub(p.price)}</b><span>${esc(isNum(p.price) ? (c.catalog || {}).priceNote : (c.catalog || {}).priceRequestNote)}</span></div>
+        <div class="pm-price"><b>${rub(p.price)}</b>${oldPrice(p)}<span>${esc(isNum(p.price) ? (c.catalog || {}).priceNote : (c.catalog || {}).priceRequestNote)}</span></div>
+        ${p.saleUntil && onSale(p) ? `<p class="sale-until"${until(p)}>${ue('saleUntil', { date: ddmm(p.saleUntil) })}</p>` : ''}
         <div class="pm-note">${arr((c.catalog || {}).sheetNotes).map((t, i) => `<span>${ico(['truck', 'card', 'doc', 'grad', 'shield', 'cert'][i % 6])}${esc(t)}</span>`).join('')}</div>
         <p class="pm-lead">${esc(p.lead)}</p>
         ${p.description ? `<div class="pp-desc">${p.description}</div>` : ''}
         <div class="pp-cta">
-          <a class="btn btn-fire" href="#lead" data-lead-product="${esc(p.name)} — ${esc(strip(rub(p.price)))}">Получить предложение ${ico('arrow')}</a>
+          <a class="btn btn-fire" href="#lead" data-lead-product="${esc(p.name)} — ${esc(strip(rub(p.price)))}">${ue('getOffer')} ${ico('arrow')}</a>
           <a class="btn btn-ghost" href="${telHref(ph.tel)}">${ico('phone', 'ico')}${esc(ph.display)}</a>
           ${l.telegram ? `<a class="btn btn-ghost" href="${esc(l.telegram)}" target="_blank" rel="noopener">${ico('tg', 'ico')}Telegram</a>` : ''}
         </div>
@@ -821,14 +957,14 @@ ${x.products.map((p, i) => card(p, x, b, i)).join('\n')}
       </div>
     </div>
     <div class="pp-cols">
-      ${arr(p.feats).length ? `<div><h2 class="pm-h">Особенности и преимущества</h2><ul class="pm-feats">${arr(p.feats).map(f => `<li>${ico('check')}<span>${esc(f)}</span></li>`).join('')}</ul></div>` : ''}
-      <div><h2 class="pm-h">Технические характеристики</h2>${arr(p.specs).length ? `<dl class="pm-specs">${arr(p.specs).map(s2 => `<div><dt>${esc(s2.name)}</dt><dd>${esc(s2.value)}</dd></div>`).join('')}</dl>` : `<p class="pp-muted">Характеристики и цену уточняйте у менеджера — пришлём полное описание модели.</p>`}</div>
+      ${arr(p.feats).length ? `<div><h2 class="pm-h">${ue('featsTitle')}</h2><ul class="pm-feats">${arr(p.feats).map(f => `<li>${ico('check')}<span>${esc(f)}</span></li>`).join('')}</ul></div>` : ''}
+      <div><h2 class="pm-h">${ue('specsTitle')}</h2>${arr(p.specs).length ? `<dl class="pm-specs">${arr(p.specs).map(s2 => `<div><dt>${esc(s2.name)}</dt><dd>${esc(s2.value)}</dd></div>`).join('')}</dl>` : `<p class="pp-muted">${ue('specsEmpty')}</p>`}</div>
     </div>
     <div class="pp-buy">
-      <h2 class="h3">Как купить <span>${esc(p.name)} в ${city === 'Иркутск' ? 'Иркутске' : esc(city)}</span></h2>
+      <h2 class="h3">${ue('howBuy')} <span>${esc(p.name)} в ${city === 'Иркутск' ? 'Иркутске' : esc(city)}</span></h2>
       <ol class="pp-steps">${arr((c.route || {}).steps).slice(0, 6).map(s2 => `<li><b>${esc(s2.title)}</b><span>${esc(s2.text)}</span></li>`).join('')}</ol>
     </div>
-    ${related.length ? `<div class="pp-rel"><h2 class="h3">Похожие <span>аппараты</span></h2><div class="grid-p">${related.map(q => card(q, x, b, x.products.indexOf(q))).join('\n')}</div><p class="cat-links"><a href="${b}katalog/${esc(k.slug || '')}/">Все ${esc((k.name || k.label || '').toLowerCase())} →</a> · <a href="${b}#catalog">Весь каталог →</a></p></div>` : ''}
+    ${related.length ? `<div class="pp-rel"><h2 class="h3">${ue('relatedTitle')} <span>${ue('relatedAccent')}</span></h2><div class="grid-p">${related.map(q => card(q, x, b, x.products.indexOf(q))).join('\n')}</div><p class="cat-links"><a href="${b}katalog/${esc(k.slug || '')}/">${ue('allInCat')} ${esc((k.name || k.label || '').toLowerCase())} →</a> · <a href="${b}#catalog">${ue('allCatalog')} →</a></p></div>` : ''}
   </div>
 </section>
 ${S.lead(c, x)}
@@ -843,22 +979,22 @@ ${S.lead(c, x)}
     const city = s.city === 'Иркутск' || !s.city ? 'Иркутске' : s.city;
     const ld = [{ '@context': 'https://schema.org', '@type': 'CollectionPage', name: k.name || k.label, url: siteUrl(c) + 'katalog/' + k.slug + '/', description: strip(k.seoDescription), isPartOf: { '@id': siteUrl(c) + '#website' } },
       { '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: list.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: siteUrl(c) + 'apparaty/' + p.slug + '/', name: p.name })) },
-      breadcrumbs(c, [['Главная', ''], ['Каталог', '#catalog'], [k.name || k.label, 'katalog/' + k.slug + '/']])].map(clean);
+      breadcrumbs(c, [[u('crumbHome'), ''], [u('crumbCatalog'), '#catalog'], [k.name || k.label, 'katalog/' + k.slug + '/']])].map(clean);
     const main = `<main id="main" class="page">
 <section class="sec light cp" aria-labelledby="cp-h">
   <div class="wrap">
-    ${crumbs([['Главная', b], ['Каталог', b + '#catalog'], [k.name || k.label, '']])}
+    ${crumbs([[u('crumbHome'), b], [u('crumbCatalog'), b + '#catalog'], [k.name || k.label, '']])}
     <div class="sec-head split">
       <div style="display:grid;gap:22px">
-        <span class="eyebrow" data-r>Каталог · ${list.length} ${plural(list.length, 'модель', 'модели', 'моделей')}</span>
-        <h1 class="h2" id="cp-h" data-r style="--d:1">${esc(k.name || k.label)} <span>— купить в ${esc(city)}</span></h1>
+        <span class="eyebrow" data-r>${ue('catEyebrow')} · ${list.length} ${plural(list.length, 'модель', 'модели', 'моделей')}</span>
+        <h1 class="h2" id="cp-h" data-r style="--d:1">${esc(k.name || k.label)} <span>— ${ue('buyIn')} ${esc(city)}</span></h1>
       </div>
       <div class="lead cp-intro" data-r style="--d:2">${k.intro || ''}</div>
     </div>
     <div class="grid-p" id="grid">
 ${list.map(p => card(p, x, b, x.products.indexOf(p))).join('\n')}
     </div>
-    <p class="cat-links">Другие разделы: ${x.cats.filter(q => q.key !== k.key && x.products.some(p => p.cat === q.key)).map(q => `<a href="${b}katalog/${esc(q.slug)}/">${esc(q.name || q.label)}</a>`).join(' · ')} · <a href="${b}#catalog">Весь каталог</a></p>
+    <p class="cat-links">${ue('otherCats')} ${x.cats.filter(q => q.key !== k.key && x.products.some(p => p.cat === q.key)).map(q => `<a href="${b}katalog/${esc(q.slug)}/">${esc(q.name || q.label)}</a>`).join(' · ')} · <a href="${b}#catalog">${ue('allCatalog')}</a></p>
   </div>
 </section>
 ${S.faq(c, x)}
@@ -871,8 +1007,8 @@ ${S.lead(c, x)}
 
   function render404(c, x) {
     const b = sitePath(c);
-    const main = `<main id="main" class="page"><section class="sec light nf"><div class="wrap"><span class="eyebrow">Ошибка 404</span><h1 class="h2" style="margin-top:22px">Страница не найдена — <span>но аппарат найдём</span></h1><p class="lead" style="margin-top:22px">Возможно, страница переехала. Загляните в каталог или позвоните — подскажем.</p><p style="margin-top:28px;display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-ink" href="${b}">На главную</a><a class="btn btn-ghost" href="${b}#catalog">Каталог</a></p><p class="cat-links" style="margin-top:28px">${x.cats.map(q => `<a href="${b}katalog/${esc(q.slug)}/">${esc(q.name || q.label)}</a>`).join(' · ')}</p></div></section></main>\n`;
-    return head(c, x, { kind: '404', base: b, path: '404.html', title: 'Страница не найдена | ' + c.site.name, description: 'Страница не найдена.', noindex: true, jsonld: [] }) + chrome_top(c, x, b, false) + main + footer(c, x, b, false);
+    const main = `<main id="main" class="page"><section class="sec light nf"><div class="wrap"><span class="eyebrow">${ue('nfEyebrow')}</span><h1 class="h2" style="margin-top:22px">${ue('nfTitle')} <span>${ue('nfAccent')}</span></h1><p class="lead" style="margin-top:22px">${ue('nfText')}</p><p style="margin-top:28px;display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-ink" href="${b}">${ue('nfHome')}</a><a class="btn btn-ghost" href="${b}#catalog">${ue('nfCatalog')}</a></p><p class="cat-links" style="margin-top:28px">${x.cats.map(q => `<a href="${b}katalog/${esc(q.slug)}/">${esc(q.name || q.label)}</a>`).join(' · ')}</p></div></section></main>\n`;
+    return head(c, x, { kind: '404', base: b, path: '404.html', title: strip(u('nfTitle')).replace(/[\s—–-]+$/, '') + ' | ' + c.site.name, description: strip(u('nfText')), noindex: true, jsonld: [] }) + chrome_top(c, x, b, false) + main + footer(c, x, b, false);
   }
 
   /* ---------------- runtime data (assets/js/data.js) ---------------- */
@@ -881,7 +1017,7 @@ ${S.lead(c, x)}
     const d = {
       v: (c.meta && c.meta.updated) || '',
       cats: Object.fromEntries(x.cats.map(q => [q.key, q.label])), catSlugs: Object.fromEntries(x.cats.map(q => [q.key, q.slug])),
-      products: x.products.map(p => ({ id: p.id, slug: p.slug, cat: p.cat, name: p.name, kind: p.kind, price: isNum(p.price) ? +p.price : null, img: p.img, fit: p.fit, pos: p.pos, lead: p.lead, gallery: [p.img, ...arr(p.gallery)].filter((v, i, a) => v && a.indexOf(v) === i), feats: arr(p.feats), specs: arr(p.specs).map(s => [s.name, s.value]), tags: arr(p.tags) })),
+      products: x.products.map(p => ({ id: p.id, slug: p.slug, cat: p.cat, name: p.name, kind: p.kind, price: isNum(p.price) ? +p.price : null, old: pct(p) ? +p.priceOld : null, until: p.saleUntil || '', img: p.img, fit: frameOf(p.img, p.fit, p.pos).fit, pos: frameOf(p.img, p.fit, p.pos).pos, lead: p.lead, gallery: [p.img, ...arr(p.gallery)].filter((v, i, a) => v && a.indexOf(v) === i), feats: arr(p.feats), specs: arr(p.specs).map(s => [s.name, s.value]), tags: arr(p.tags) })),
       priceNote: k.priceNote, priceRequestNote: k.priceRequestNote,
       phototypes: arr((c.tech || {}).phototypes).map(p => ({ t: p.title, s: p.sub, w: arr(p.waves), m: p.main, x: p.text })),
       techSteps: arr((c.tech || {}).steps).map(s => ({ tag: s.tag, f: +s.follicle || 0, s: +s.skin || 0 })),
@@ -894,6 +1030,8 @@ ${S.lead(c, x)}
       map: { lat: (c.company.geo || {}).lat, lng: (c.company.geo || {}).lng, title: `${c.company.address.city}, ${c.company.address.street}` },
       music: c.music || {},
       intro: !!((c.site || {}).intro || {}).enabled,
+      ui: Object.fromEntries(Object.keys(UI_DEF).map(k => [k, u(k)])),
+      media: Object.fromEntries(Object.entries(MEDIA).filter(([, v]) => v && (v.fit || v.x != null || v.y != null)).map(([k, v]) => [k, [v.fit || '', v.x == null ? 50 : +v.x, v.y == null ? 50 : +v.y, v.bg || '']])),
     };
     return '/* Сгенерировано из content.json — не редактируйте вручную, правьте через админку */\nwindow.TE_DATA=' + JSON.stringify(d).replace(/</g, '\\u003c') + ';\n';
   }
@@ -915,13 +1053,13 @@ ${S.lead(c, x)}
     return `# ${c.site.name}\nUser-agent: *\nAllow: ${p}\nDisallow: ${p}admin/\nClean-param: utm_source&utm_medium&utm_campaign&utm_content&utm_term&yclid&gclid&fbclid&ysclid ${p}\n\nUser-agent: Yandex\nAllow: ${p}\nDisallow: ${p}admin/\n\nUser-agent: Googlebot\nAllow: ${p}\nDisallow: ${p}admin/\n\n# ИИ-ассистенты и поисковые ИИ — разрешаем, чтобы нас цитировали\nUser-agent: GPTBot\nAllow: ${p}\nUser-agent: OAI-SearchBot\nAllow: ${p}\nUser-agent: ChatGPT-User\nAllow: ${p}\nUser-agent: PerplexityBot\nAllow: ${p}\nUser-agent: ClaudeBot\nAllow: ${p}\nUser-agent: Claude-SearchBot\nAllow: ${p}\nUser-agent: Google-Extended\nAllow: ${p}\n\nSitemap: ${siteUrl(c)}sitemap.xml\n`;
   }
   function llms(c, x, full) {
-    const co = c.company || {}, ad = co.address || {}, l = co.links || {}, u = siteUrl(c), s = c.seo || {};
-    let t = `# ${c.site.name} — оборудование для салонов красоты (${ad.city}, ${s.region})\n\n> ${strip(tok(s.description, x))}\n\n`;
-    t += `## Коротко\n- Компания: ${c.site.name} — поставка профессионального косметологического оборудования, с ${co.founded} года.\n- Где: ${ad.city}, ${ad.street} (${ad.note}).\n- География работы: ${s.serviceArea || s.region}.\n- Шоурум: ${co.legalName} — оборудование работает в студии, его можно посмотреть и попробовать.\n- Основатель: ${co.founder} — ${String(co.founderTitle || '').toLowerCase()}.\n- Ассортимент: ${x.count} ${x.countWord}, цены от ${strip(x.minPrice)} до ${strip(x.maxPrice)}.\n- Условия: бесплатная доставка, рассрочка, социальный контракт, обучение, гарантия, сертификация Ростест.\n- Телефон: ${(co.phone || {}).display}${(co.phone2 || {}).display ? ', ' + co.phone2.display : ''}. Часы: ${(co.hours || {}).text}.\n- Telegram: ${l.telegram || '—'}. Сайт студии для клиентов: ${l.studioSite || '—'}.\n- Реквизиты: ${co.legalForm}, ИНН ${co.inn}, ОГРНИП ${co.ogrnip}.\n\n`;
-    t += `## Разделы каталога\n` + x.cats.filter(k => x.products.some(p => p.cat === k.key)).map(k => `- [${k.name || k.label}](${u}katalog/${k.slug}/): ${strip(k.seoDescription)}`).join('\n') + '\n\n';
-    t += `## Аппараты и цены\n` + x.products.map(p => `- [${p.name}](${u}apparaty/${p.slug}/) — ${p.kind}; цена: ${strip(rub(p.price))}. ${strip(p.lead)}`).join('\n') + '\n\n';
+    const co = c.company || {}, ad = co.address || {}, l = co.links || {}, su = siteUrl(c), s = c.seo || {};
+    let t = `# ${c.site.name} — ${u('tagline')} (${ad.city}, ${s.region})\n\n> ${strip(tok(s.description, x))}\n\n`;
+    t += `## Коротко\n- Компания: ${c.site.name} — поставка профессионального косметологического оборудования, с ${co.founded} года.\n- Где: ${ad.city}, ${ad.street} (${ad.note}).\n- География работы: ${s.serviceArea || s.region}.\n- Шоурум: ${co.legalName} — оборудование работает в студии, его можно посмотреть и попробовать.\n- Основатель: ${co.founder} — ${String(co.founderTitle || '').toLowerCase()}.\n- Ассортимент: ${x.count} ${x.countWord}, цены от ${strip(x.minPrice)} до ${strip(x.maxPrice)}.\n- Условия: ${u('fTermsText')}.\n- Телефон: ${(co.phone || {}).display}${(co.phone2 || {}).display ? ', ' + co.phone2.display : ''}. Часы: ${(co.hours || {}).text}.\n- Telegram: ${l.telegram || '—'}. Сайт студии для клиентов: ${l.studioSite || '—'}.\n- Реквизиты: ${co.legalForm}, ИНН ${co.inn}, ОГРНИП ${co.ogrnip}.\n\n`;
+    t += `## Разделы каталога\n` + x.cats.filter(k => x.products.some(p => p.cat === k.key)).map(k => `- [${k.name || k.label}](${su}katalog/${k.slug}/): ${strip(k.seoDescription)}`).join('\n') + '\n\n';
+    t += `## Аппараты и цены\n` + x.products.map(p => `- [${p.name}](${su}apparaty/${p.slug}/) — ${p.kind}; цена: ${strip(rub(p.price))}. ${strip(p.lead)}`).join('\n') + '\n\n';
     if (full) {
-      t += `## Подробно по каждому аппарату\n\n` + x.products.map(p => `### ${p.name}\n- Категория: ${(x.catBy[p.cat] || {}).name || p.cat}\n- Тип: ${p.kind}\n- Цена: ${strip(rub(p.price))}\n- Страница: ${u}apparaty/${p.slug}/\n\n${strip(p.lead)}\n\n${arr(p.feats).length ? 'Особенности:\n' + arr(p.feats).map(f => '- ' + strip(f)).join('\n') + '\n\n' : ''}${arr(p.specs).length ? 'Характеристики:\n' + arr(p.specs).map(q => `- ${q.name}: ${q.value}`).join('\n') + '\n\n' : ''}`).join('');
+      t += `## Подробно по каждому аппарату\n\n` + x.products.map(p => `### ${p.name}\n- Категория: ${(x.catBy[p.cat] || {}).name || p.cat}\n- Тип: ${p.kind}\n- Цена: ${strip(rub(p.price))}\n- Страница: ${su}apparaty/${p.slug}/\n\n${strip(p.lead)}\n\n${arr(p.feats).length ? 'Особенности:\n' + arr(p.feats).map(f => '- ' + strip(f)).join('\n') + '\n\n' : ''}${arr(p.specs).length ? 'Характеристики:\n' + arr(p.specs).map(q => `- ${q.name}: ${q.value}`).join('\n') + '\n\n' : ''}`).join('');
       t += `## Услуги студии на этом оборудовании\n` + arr((c.studio || {}).services).map(v => `- ${v.title}: ${strip(v.text)} ${arr(v.rows).map(r => r.name + ' — ' + r.value).join('; ')}`).join('\n') + '\n\n';
     }
     t += `## Частые вопросы\n` + arr((c.faq || {}).items).map(q => `### ${strip(q.q)}\n${strip(tok(q.a, x))}\n`).join('\n') + '\n';
@@ -929,13 +1067,14 @@ ${S.lead(c, x)}
     return t;
   }
   function manifest(c) {
-    return JSON.stringify({ name: `${c.site.name} — оборудование для салонов красоты`, short_name: c.site.name, lang: 'ru', start_url: './', scope: './', display: 'standalone', background_color: (c.theme || {}).ink || '#04120E', theme_color: (c.site || {}).themeColor || '#04120E', icons: [{ src: 'assets/icons/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: 'assets/icons/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: 'assets/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] }, null, 2);
+    return JSON.stringify({ name: `${c.site.name} — ${u('tagline')}`, short_name: c.site.name, lang: 'ru', start_url: './', scope: './', display: 'standalone', background_color: (c.theme || {}).ink || '#04120E', theme_color: (c.site || {}).themeColor || '#04120E', icons: [{ src: 'assets/icons/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: 'assets/icons/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: 'assets/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] }, null, 2);
   }
 
   /* ---------------- main ---------------- */
   function renderAll(content, opts) {
     const c = JSON.parse(JSON.stringify(content));
     c.site = c.site || {}; c.company = c.company || {}; c.company.address = c.company.address || {}; c.company.geo = c.company.geo || {};
+    UI = c.ui || {}; MEDIA = c.media || {}; CUR = c;
     const x = ctxOf(c), files = {};
     if (opts && opts.base != null) x.forceBase = opts.base;
     files['index.html'] = renderHome(c, x);
@@ -953,5 +1092,5 @@ ${S.lead(c, x)}
     return files;
   }
 
-  return { VERSION, renderAll, ctxOf, slugify: s => String(s || '').toLowerCase().replace(/[а-яё]/g, ch => ({ а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'j', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya' }[ch])).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') };
+  return { VERSION, UI_DEF, BADGE_T, renderAll, ctxOf, frameOf: (f, m) => { const keep = MEDIA; MEDIA = m || {}; try { return frameOf(f); } finally { MEDIA = keep; } }, slugify: s => String(s || '').toLowerCase().replace(/[а-яё]/g, ch => ({ а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'j', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya' }[ch])).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') };
 });

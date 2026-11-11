@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Админка — Trend Esthetic</title>
 <link rel="icon" href="../assets/icons/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="admin.css">
+<link rel="stylesheet" href="admin.css?v=mwbjjo05">
 </head>
 <body>
 <div class="app" id="app">
@@ -15,6 +15,7 @@
     <div class="st" id="conn"><i></i><span>Не подключено к GitHub</span></div>
     <div class="dirty" id="dirty" hidden>● Есть неопубликованные изменения</div>
     <div class="acts">
+      <div class="hist"><button class="b ghost" id="btnUndo" type="button" title="Отменить (Ctrl+Z)" disabled>↶</button><button class="b ghost" id="btnRedo" type="button" title="Вернуть (Ctrl+Shift+Z)" disabled>↷</button></div>
       <button class="b ghost" id="btnPreview" type="button" title="Показать / скрыть предпросмотр">👁 Предпросмотр</button>
       <button class="b ghost" id="btnSettings" type="button">⚙ Подключение</button>
       <button class="b gold" id="btnPublish" type="button">🚀 Опубликовать</button>
@@ -62,13 +63,15 @@
   <div class="dlg-in">
     <h2 id="pkTitle">Выбор изображения</h2>
     <div class="pk-bar"><input type="search" id="pkSearch" placeholder="Поиск по имени файла"><label class="b gold">⬆ Загрузить<input type="file" id="pkUpload" accept="image/*" multiple hidden></label></div>
+    <div class="pk-opts"><label class="chk"><input type="checkbox" id="pkEdit" checked> Открыть редактор после выбора файла (обрезка, поворот, фильтры)</label><span class="muted">Наведите на фото: ✎ — редактор, ⌖ — кадр на сайте.</span></div>
     <div class="media" id="pkGrid"></div>
     <div class="row-end"><button class="b ghost" type="button" data-close>Закрыть</button></div>
   </div>
 </dialog>
 
 <div class="toast" id="toast"></div>
-<script src="../assets/js/render.js"></script>
-<script src="admin.js"></script>
+<script src="../assets/js/render.js?v=mwbjjo05"></script>
+<script src="photo.js?v=mwbjjo05"></script>
+<script src="admin.js?v=mwbjjo05"></script>
 </body>
 </html>

@@ -1,11 +1,11 @@
 {
  "meta": {
   "version": 4,
-  "updated": "2026-11-08T15:01:09.394Z"
+  "updated": "2026-11-11T03:10:02.896Z"
  },
  "site": {
   "name": "Trend Esthetic",
-  "url": "Trend.Esthetic.ru",
+  "url": "https://USERNAME.github.io/REPO/",
   "cname": "",
   "brandSub": "× Студия Елены Толмачевой",
   "themeColor": "#04120E",
@@ -726,7 +726,8 @@
     "seoDescription": "Спа-кушетка с раковиной, «Золотой дугой» и парогенератором для Head SPA — такая работает в нашей студии в Иркутске. Любой цвет и размер под заказ.",
     "intro": "<p>Head SPA — одна из самых востребованных процедур последних лет. Спа-кушетка с раковиной, латунной «Золотой дугой», парогенератором и проточным водонагревателем — основа такого кабинета. Именно такая кушетка работает в нашей студии в Иркутске.</p>"
    }
-  ]
+  ],
+  "autoDiscount": true
  },
  "products": [
   {
@@ -737,10 +738,9 @@
    "kind": "Диодный лазер",
    "price": 329990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_titanium2.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -842,10 +842,9 @@
    "kind": "Диодный лазер + DPL-манипула",
    "price": 369000,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "dpl_4.webp",
-   "fit": "cover",
-   "pos": "50% 30%",
    "imgAlt": "",
    "badges": [
     {
@@ -921,10 +920,9 @@
    "kind": "Диодный лазер",
    "price": 369990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_speed.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -1011,6 +1009,47 @@
    "hidden": false
   },
   {
+   "id": "model2026",
+   "slug": "diodnyj-lazer-model-2026",
+   "cat": "epil",
+   "name": "Модель 2026",
+   "kind": "Диодный лазер",
+   "price": null,
+   "priceOld": null,
+   "saleUntil": "",
+   "availability": "InStock",
+   "img": "c_2026.webp",
+   "imgAlt": "",
+   "badges": [
+    {
+     "type": "f",
+     "text": "Хит 2026"
+    }
+   ],
+   "chips": [
+    "Дисплей на манипуле",
+    "Фильтры воды"
+   ],
+   "lead": "Хит 2026 года, который набирает популярность. Качественный корпус и дополнительный дисплей прямо на манипуле лазера.",
+   "description": "",
+   "gallery": [
+    "c_2026.webp"
+   ],
+   "feats": [
+    "Дополнительный дисплей на манипуле лазера",
+    "Фильтры дополнительно очищают воду — дольше срок службы оборудования",
+    "Очень удобная манипула: с первого нажатия прилегает к руке",
+    "Качественный корпус"
+   ],
+   "specs": [],
+   "tags": [
+    "flow"
+   ],
+   "seoTitle": "",
+   "seoDescription": "",
+   "hidden": false
+  },
+  {
    "id": "alma-compact",
    "slug": "soprano-alma-compact",
    "cat": "epil",
@@ -1018,10 +1057,9 @@
    "kind": "Диодный лазер · компактный корпус",
    "price": 239990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_alma.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -1113,10 +1151,9 @@
    "kind": "Диодный лазер",
    "price": 219990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_te800.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [],
    "chips": [
@@ -1199,10 +1236,9 @@
    "kind": "Диодный лазер · бюджетная серия",
    "price": 149990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_te600.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -1292,10 +1328,9 @@
    "kind": "SHR · IPL · ELOS",
    "price": 139990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_es770.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -1370,6 +1405,118 @@
    "hidden": false
   },
   {
+   "id": "opt01",
+   "slug": "kosmeticheskij-kombajn-opt-01",
+   "cat": "multi",
+   "name": "OPT-01",
+   "kind": "Косметический комбайн · 3 манипулы",
+   "price": 199990,
+   "priceOld": null,
+   "saleUntil": "",
+   "availability": "InStock",
+   "img": "c_opt01.webp",
+   "imgAlt": "",
+   "badges": [
+    {
+     "type": "l",
+     "text": "10 услуг"
+    }
+   ],
+   "chips": [
+    "RF · Nd:YAG · ELOS",
+    "3 манипулы",
+    "На колёсах"
+   ],
+   "lead": "Напольный аппарат на колёсах: RF-лифтинг, SHR- и ELOS-эпиляция, фотоомоложение, осветление пигмента, лечение акне, удаление сосудистой сетки, татуировок и перманентного макияжа, карбоновый пилинг.",
+   "description": "",
+   "gallery": [
+    "c_opt01.webp"
+   ],
+   "feats": [
+    "RF-лифтинг — аппаратная коррекция фигуры",
+    "Неодимовая манипула: удаление татуировок, татуажа и карбоновый пилинг — ресурс 1 000 000 вспышек",
+    "ELOS: SHR- и ELOS-эпиляция, фотоомоложение, пигмент, акне, сосудистая сетка — ресурс 200 000 вспышек"
+   ],
+   "specs": [
+    {
+     "name": "Манипулы",
+     "value": "RF · неодимовая (Nd:YAG) · ELOS"
+    },
+    {
+     "name": "Ресурс неодимовой манипулы",
+     "value": "1 000 000 вспышек"
+    },
+    {
+     "name": "Ресурс ELOS-манипулы",
+     "value": "200 000 вспышек"
+    },
+    {
+     "name": "Корпус",
+     "value": "Напольный, на колёсах"
+    }
+   ],
+   "tags": [
+    "multi",
+    "flow"
+   ],
+   "seoTitle": "",
+   "seoDescription": "",
+   "hidden": false
+  },
+  {
+   "id": "magneto",
+   "slug": "magneto-360",
+   "cat": "multi",
+   "name": "MAGNETO 360",
+   "kind": "ELOS + RF + неодимовый лазер",
+   "price": 199990,
+   "priceOld": null,
+   "saleUntil": "",
+   "availability": "InStock",
+   "img": "c_magneto.webp",
+   "imgAlt": "",
+   "badges": [
+    {
+     "type": "l",
+     "text": "Обновлённая версия"
+    }
+   ],
+   "chips": [
+    "ELOS · RF · Nd:YAG",
+    "8 процедур"
+   ],
+   "lead": "Обновлённая версия MAGNETO 360: технологии ELOS, RF и неодимовый лазер для решения большинства эстетических задач кожи лица и тела.",
+   "description": "",
+   "gallery": [
+    "c_magneto.webp"
+   ],
+   "feats": [
+    "SHR- и ELOS-эпиляция",
+    "Фотоомоложение и осветление пигментных пятен",
+    "Лечение акне и удаление мелкой сосудистой сетки",
+    "Удаление татуировок и перманентного макияжа",
+    "Карбоновый пилинг",
+    "RF-лифтинг"
+   ],
+   "specs": [
+    {
+     "name": "Технологии",
+     "value": "ELOS · RF · неодимовый лазер"
+    },
+    {
+     "name": "Версия",
+     "value": "Обновлённая"
+    }
+   ],
+   "tags": [
+    "multi",
+    "flow"
+   ],
+   "seoTitle": "",
+   "seoDescription": "",
+   "hidden": false
+  },
+  {
    "id": "tattoo",
    "slug": "apparat-udalenie-tatu-karbonovyj-piling",
    "cat": "multi",
@@ -1377,10 +1524,9 @@
    "kind": "Лазерный аппарат · 2 процедуры",
    "price": 369000,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "tat_3.webp",
-   "fit": "cover",
-   "pos": "50% 20%",
    "imgAlt": "",
    "badges": [
     {
@@ -1451,10 +1597,9 @@
    "kind": "Многофункциональный комбайн",
    "price": 189000,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c5_1.webp",
-   "fit": "cover",
-   "pos": "50% 18%",
    "imgAlt": "",
    "badges": [
     {
@@ -1525,10 +1670,9 @@
    "kind": "Роликовый + вибрационный массаж",
    "price": 219000,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "vib_1.webp",
-   "fit": "cover",
-   "pos": "50% 28%",
    "imgAlt": "",
    "badges": [
     {
@@ -1604,10 +1748,9 @@
    "kind": "Эндосфера-терапия",
    "price": 219990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_endo.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -1670,10 +1813,9 @@
    "kind": "Кавитация · вакуум · RF · липолазер",
    "price": 49990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "kim8.webp",
-   "fit": "cover",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -1746,10 +1888,9 @@
    "kind": "RF-лифтинг + кавитация",
    "price": 19990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_lw101.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [],
    "chips": [
@@ -1794,10 +1935,9 @@
    "kind": "Прессотерапия",
    "price": 14990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "slim01.webp",
-   "fit": "cover",
-   "pos": "",
    "imgAlt": "",
    "badges": [],
    "chips": [
@@ -1838,10 +1978,9 @@
    "kind": "Прессотерапия + ИК-прогрев",
    "price": 49990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
-   "img": "1.webp",
-   "fit": "cover",
-   "pos": "",
+   "img": "infraslim.webp",
    "imgAlt": "",
    "badges": [
     {
@@ -1856,11 +1995,7 @@
    "lead": "Две функции в одном аппарате: прессомассаж, который влияет на лимфу и кровь, и термотерапия — физиотерапевтические и косметологические методы с использованием тепла.",
    "description": "",
    "gallery": [
-    "1.webp",
-    "2.webp",
-    "3.webp",
-    "4.webp",
-    "5.webp"
+    "infraslim.webp"
    ],
    "feats": [
     "Прессомассаж — лимфодренаж и кровообращение",
@@ -1888,10 +2023,9 @@
    "kind": "Вибромассаж + вакуум",
    "price": 44990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_g5.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [],
    "chips": [
@@ -1937,12 +2071,11 @@
    "cat": "face",
    "name": "Микроигольчатый RF Scarlet",
    "kind": "Фракционный RF-лифтинг",
-   "price": 109990,
+   "price": 89990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
-   "img": "6.webp",
-   "fit": "contain",
-   "pos": "",
+   "img": "c_scarlet.webp",
    "imgAlt": "",
    "badges": [],
    "chips": [
@@ -1953,7 +2086,7 @@
    "lead": "Фракционное и радиочастотное воздействие на глубокие слои кожи: микроиглы запускают ускоренную регенерацию, а RF-волны нагревают дерму до 40–60 °C — фибробласты начинают производить новый коллаген и эластин.",
    "description": "",
    "gallery": [
-    "6.webp",
+    "c_scarlet.webp",
     "doc_rf.webp",
     "scar_room.webp",
     "scar_kit.webp",
@@ -2021,10 +2154,9 @@
    "kind": "Фракционный RF-лифтинг",
    "price": 219990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "inmode.webp",
-   "fit": "cover",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -2074,12 +2206,11 @@
    "cat": "face",
    "name": "Hydrofacial H2O2 · 7 в 1",
    "kind": "Косметологический комбайн",
-   "price": 44990,
+   "price": 34990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_hydro.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -2124,10 +2255,9 @@
    "kind": "Ультразвуковая чистка лица",
    "price": 8990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_ac01.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -2173,10 +2303,9 @@
    "kind": "Ультразвуковая терапия",
    "price": 19990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "c_lp01.webp",
-   "fit": "contain",
-   "pos": "",
    "imgAlt": "",
    "badges": [],
    "chips": [
@@ -2226,12 +2355,11 @@
    "cat": "spa",
    "name": "SPA-кушетка с раковиной",
    "kind": "Head SPA · массаж",
-   "price": 199990,
+   "price": 179990,
    "priceOld": null,
+   "saleUntil": "",
    "availability": "InStock",
    "img": "st_headspa.webp",
-   "fit": "cover",
-   "pos": "",
    "imgAlt": "",
    "badges": [
     {
@@ -2891,10 +3019,77 @@
   "resultBtn": "Получить предложение"
  },
  "music": {
-  "enabled": false,
+  "enabled": true,
   "autoplay": true,
   "file": "music.mp3",
   "title": "Billie Eilish — CHIHIRO",
   "volume": 0.35
- }
+ },
+ "media": {
+  "c_titanium2.webp": {
+   "fit": "contain"
+  },
+  "dpl_4.webp": {
+   "x": 50,
+   "y": 30
+  },
+  "c_speed.webp": {
+   "fit": "contain"
+  },
+  "c_2026.webp": {
+   "fit": "contain"
+  },
+  "c_alma.webp": {
+   "fit": "contain"
+  },
+  "c_te800.webp": {
+   "fit": "contain"
+  },
+  "c_te600.webp": {
+   "fit": "contain"
+  },
+  "c_es770.webp": {
+   "fit": "contain"
+  },
+  "c_opt01.webp": {
+   "fit": "contain"
+  },
+  "c_magneto.webp": {
+   "fit": "contain"
+  },
+  "tat_3.webp": {
+   "x": 50,
+   "y": 20
+  },
+  "c5_1.webp": {
+   "x": 50,
+   "y": 18
+  },
+  "vib_1.webp": {
+   "x": 50,
+   "y": 28
+  },
+  "c_endo.webp": {
+   "fit": "contain"
+  },
+  "c_lw101.webp": {
+   "fit": "contain"
+  },
+  "c_g5.webp": {
+   "fit": "contain"
+  },
+  "c_scarlet.webp": {
+   "fit": "contain"
+  },
+  "c_hydro.webp": {
+   "fit": "contain"
+  },
+  "c_ac01.webp": {
+   "fit": "contain"
+  },
+  "c_lp01.webp": {
+   "fit": "contain"
+  }
+ },
+ "ui": {}
 }
