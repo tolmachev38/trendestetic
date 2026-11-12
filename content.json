@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 4,
-  "updated": "2026-11-12T06:33:41.495Z"
+  "updated": "2026-11-12T06:36:06.648Z"
  },
  "site": {
   "name": "Trend Esthetic",
@@ -3108,13 +3108,18 @@
   },
   "c5_2.webp": {
    "fit": "cover",
-   "x": 39,
-   "y": 63
+   "x": 37,
+   "y": 68
   },
   "body_measure.webp": {
    "fit": "cover",
    "x": 9,
    "y": 70
+  },
+  "f_c_heads.webp": {
+   "fit": "cover",
+   "x": 50,
+   "y": 50
   }
  },
  "ui": {}
