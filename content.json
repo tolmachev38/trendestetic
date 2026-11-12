@@ -1,11 +1,11 @@
 {
  "meta": {
   "version": 4,
-  "updated": "2026-11-11T03:10:02.896Z"
+  "updated": "2026-11-12T06:33:41.495Z"
  },
  "site": {
   "name": "Trend Esthetic",
-  "url": "https://USERNAME.github.io/REPO/",
+  "url": "https://trendesthetic.ru/",
   "cname": "",
   "brandSub": "× Студия Елены Толмачевой",
   "themeColor": "#04120E",
@@ -2566,16 +2566,16 @@
     "caption": "Логотип студии на экране аппарата"
    },
    {
-    "img": "vib_4.webp",
-    "caption": "Роликовые манипулы"
+    "img": "c5_5.webp",
+    "caption": "Манипула биофотон"
    },
    {
     "img": "c5_6.webp",
     "caption": "Комбайн 5 в 1"
    },
    {
-    "img": "c5_5.webp",
-    "caption": "Манипула биофотон"
+    "img": "vib_4.webp",
+    "caption": "Роликовые манипулы"
    },
    {
     "img": "c5_4.webp",
@@ -3062,8 +3062,9 @@
    "y": 20
   },
   "c5_1.webp": {
-   "x": 50,
-   "y": 18
+   "fit": "cover",
+   "x": 34,
+   "y": 4
   },
   "vib_1.webp": {
    "x": 50,
@@ -3089,6 +3090,31 @@
   },
   "c_lp01.webp": {
    "fit": "contain"
+  },
+  "st_laser.webp": {
+   "fit": "cover",
+   "x": 82,
+   "y": 56
+  },
+  "c5_6.webp": {
+   "fit": "cover",
+   "x": 50,
+   "y": 50
+  },
+  "c5_3.webp": {
+   "fit": "cover",
+   "x": 74,
+   "y": 35
+  },
+  "c5_2.webp": {
+   "fit": "cover",
+   "x": 39,
+   "y": 63
+  },
+  "body_measure.webp": {
+   "fit": "cover",
+   "x": 9,
+   "y": 70
   }
  },
  "ui": {}
